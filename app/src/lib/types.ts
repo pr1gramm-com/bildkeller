@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import type { ApiPayload } from "./api/envelope";
 
 export type SessionUser = {
   /** Session token — also the cookie `id` value and _nonce source (first 16 chars). */

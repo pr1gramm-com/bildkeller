@@ -92,7 +92,7 @@ export async function createSession(userId: number): Promise<string> {
 }
 
 export function meMap(
-  user: { id: string; name: string; mark: number; verified: boolean; admin: boolean },
+  user: { id: string; name: string; mark: number; verified: boolean; admin: boolean; mod?: boolean },
   extra: Record<string, string> = {},
 ): MeMap {
   return {

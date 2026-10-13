@@ -9,7 +9,9 @@ import "@/lib/api/register-all";
 let token = "";
 const PASSWORD = "correct horse";
 
-function req(path: string, init?: RequestInit) {
+type ReqInit = { method?: string; body?: BodyInit; headers?: Record<string, string> };
+
+function req(path: string, init?: ReqInit) {
   return new NextRequest(`http://localhost:3000${path}`, init);
 }
 
@@ -63,8 +65,8 @@ describe("auth", () => {
       ["user", "login"],
     );
     const body = await json(res);
-    expect(body.success).toBe(false);
-    expect(body.error).toBeTruthy();
+    expect(body.success).toBeUndefined();
+    expect(body.error).toBe("invalid credentials");
   });
 
   it("user.validate resolves the session from the me-cookie", async () => {

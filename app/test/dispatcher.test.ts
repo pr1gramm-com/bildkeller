@@ -3,7 +3,9 @@ import { NextRequest } from "next/server";
 import { handle, register } from "@/lib/api/router";
 import { ok } from "@/lib/api/envelope";
 
-function req(path: string, init?: RequestInit) {
+type ReqInit = { method?: string; body?: BodyInit; headers?: Record<string, string> };
+
+function req(path: string, init?: ReqInit) {
   return new NextRequest(`http://localhost:3000${path}`, init);
 }
 
