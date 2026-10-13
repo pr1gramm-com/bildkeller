@@ -171,6 +171,9 @@ importers:
       '@bildkeller/db':
         specifier: workspace:*
         version: link:../packages/db
+      drizzle-orm:
+        specifier: 0.45.4
+        version: 0.45.4(@types/pg@8.23.1)(pg@8.23.1)
       next:
         specifier: 16.4.0
         version: 16.4.0(@types/node@24.19.2)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
