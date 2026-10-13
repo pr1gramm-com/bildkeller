@@ -10,6 +10,7 @@ import { assertNonce } from "@/lib/auth";
 import { uploadQuota } from "@/lib/ratelimit";
 import { parseTagQuery } from "@/lib/tagquery";
 import { logEvent } from "@/lib/sync";
+import { addTag } from "@/lib/tags";
 
 export type ApiItem = {
   id: number;
@@ -83,7 +84,8 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const flags = effectiveFlags(user, Number(ctx.query.get("flags") ?? 31) || 31);
   const promoted = Number(ctx.query.get("promoted") ?? 0);
   const showJunk = ctx.query.get("show_junk") === "1";
-  const older = Number(ctx.query.get("older") ?? 0);
+  const idParam = Number(ctx.query.get("id") ?? 0);
+  const older = idParam > 0 ? idParam + 1 : Number(ctx.query.get("older") ?? 0);
   const tq = parseTagQuery(ctx.query.get("tags") ?? "");
   const userName = ctx.query.get("user") ?? tq.user;
 
@@ -303,16 +305,7 @@ register("items.post", async (ctx) => {
     })
     .returning();
 
-  for (const name of tagNames) {
-    const existing = await db.select().from(schema.tags).where(eq(schema.tags.tag, name)).limit(1);
-    const tag =
-      existing[0] ??
-      (await db.insert(schema.tags).values({ tag: name }).returning())[0];
-    await db
-      .insert(schema.itemTags)
-      .values({ itemId: item.id, tagId: tag.id })
-      .onConflictDoNothing();
-  }
+  for (const name of tagNames) await addTag(item.id, user.userId, name);
 
   const collectionId = Number(ctx.form.targetCollectionId ?? 0);
   if (collectionId > 0) {

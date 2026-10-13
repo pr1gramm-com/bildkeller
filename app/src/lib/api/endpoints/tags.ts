@@ -3,6 +3,7 @@ import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
+import { addTag } from "@/lib/tags";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 function requireUser(ctx: ApiCtx): SessionUser {
@@ -17,18 +18,14 @@ async function findTag(name: string) {
 }
 
 register("tags.add", async (ctx) => {
-  requireUser(ctx);
+  const user = requireUser(ctx);
   const itemId = Number(ctx.form.itemId ?? 0);
   const names = (ctx.form.tags ?? "")
     .split(",")
     .map((t) => t.trim().toLowerCase())
     .filter(Boolean);
   if (!itemId || names.length === 0) return fail("invalid");
-  for (const name of names) {
-    const tag =
-      (await findTag(name)) ?? (await db.insert(schema.tags).values({ tag: name }).returning())[0];
-    await db.insert(schema.itemTags).values({ itemId, tagId: tag.id }).onConflictDoNothing();
-  }
+  for (const name of names) await addTag(itemId, user.userId, name);
   return ok({});
 });
 

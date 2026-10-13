@@ -54,11 +54,18 @@ describe("tags.add / tags.vote", () => {
     expect(tags.map((t) => t.tag).sort()).toEqual(["katzen", "niedlich", "süß"]);
   });
 
-  it("voting a tag updates confidence", async () => {
-    await post("/api/tags/vote", { itemId: String(itemId), tag: "katzen", up: "1" }, userToken);
+  it("tags start visible: the adder's implicit upvote gives confidence >= 0.2", async () => {
+    const body = await json(await handle(req(`/api/items/info?itemId=${itemId}`), ["items", "info"]));
+    const tags = body.tags as Array<{ confidence: number }>;
+    expect(tags.length).toBeGreaterThan(0);
+    expect(tags.every((t) => t.confidence >= 0.2)).toBe(true);
+  });
+
+  it("a second user's vote raises confidence", async () => {
+    await post("/api/tags/vote", { itemId: String(itemId), tag: "katzen", up: "1" }, modToken);
     const body = await json(await handle(req(`/api/items/info?itemId=${itemId}`), ["items", "info"]));
     const katzen = (body.tags as Array<{ tag: string; confidence: number }>).find((t) => t.tag === "katzen");
-    expect(katzen?.confidence).toBeGreaterThan(0);
+    expect(katzen?.confidence).toBeGreaterThan(0.3);
   });
 
   it("mod can delete a tag", async () => {
