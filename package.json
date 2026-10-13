@@ -2,14 +2,6 @@
   "name": "bildkeller",
   "private": true,
   "packageManager": "pnpm@12.9.1",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "@swc/core",
-      "unrs-resolver"
-    ]
-  },
   "scripts": {
     "type-check": "pnpm -r --if-present type-check",
     "test": "pnpm -r --if-present test",
