@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { handle, register } from "@/lib/api/router";
+import { ok } from "@/lib/api/envelope";
 
 function req(path: string, init?: RequestInit) {
   return new NextRequest(`http://localhost:3000${path}`, init);
@@ -18,7 +19,7 @@ describe("api dispatcher", () => {
   });
 
   it("registered handler receives query params and envelope wraps payload", async () => {
-    register("test.echo", async (ctx) => ({ ping: ctx.query.get("x") }));
+    register("test.echo", async (ctx) => ok({ ping: ctx.query.get("x") }));
     const res = await handle(req("/api/test/echo?x=1"), ["test", "echo"]);
     const json = await res.json();
     expect(json.ping).toBe("1");
@@ -27,7 +28,7 @@ describe("api dispatcher", () => {
   });
 
   it("POST form-encoded body lands in ctx.form", async () => {
-    register("test.post", async (ctx) => ({ v: ctx.form.foo }));
+    register("test.post", async (ctx) => ok({ v: ctx.form.foo }));
     const res = await handle(
       req("/api/test/post", {
         method: "POST",
@@ -40,7 +41,7 @@ describe("api dispatcher", () => {
   });
 
   it("dot-name registration is reachable via slash path", async () => {
-    register("test.de.dot", async () => ({ ok: true }));
+    register("test.de.dot", async () => ok({ ok: true }));
     const res = await handle(req("/api/test/de/dot"), ["test", "de", "dot"]);
     expect((await res.json()).ok).toBe(true);
   });
