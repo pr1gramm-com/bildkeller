@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parseTagQuery } from "@/lib/tagquery";
 
 describe("parseTagQuery", () => {
-  it("parses the verified pr0gramm query grammar", () => {
+  it("parses the reference query grammar", () => {
     expect(parseTagQuery("! katzen -\"video\" s:100")).toEqual({
       advanced: true,
       include: ["katzen"],

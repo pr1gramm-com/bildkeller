@@ -7,5 +7,7 @@
     "test": "pnpm -r --if-present test",
     "build": "pnpm --filter @bildkeller/app build",
     "dev": "pnpm --filter @bildkeller/app dev"
-  }
+  },
+  "license": "AGPL-3.0-or-later",
+  "description": "Self-hosted open-source image board"
 }

@@ -42,7 +42,7 @@ beforeAll(async () => {
 
 describe("wilson", () => {
   it("orders confidence sensibly", () => {
-    expect(wilson(5, 0)).toBeCloseTo(0.5655, 3); // matches observed pr0gramm confidence
+    expect(wilson(5, 0)).toBeCloseTo(0.5655, 3); // matches observed reference-API confidence
     expect(wilson(5, 0)).toBeGreaterThan(wilson(6, 1));
     expect(wilson(6, 1)).toBeGreaterThan(wilson(10, 8));
     expect(wilson(10, 8)).toBeGreaterThan(wilson(1, 0));

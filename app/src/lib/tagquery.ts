@@ -12,7 +12,7 @@ export type TagQuery = {
 
 const MEDIA = new Set<string>(["sound", "video", "repost"]);
 
-/** Parses the pr0gramm-style query grammar: `! tag -tag -"video" s:100 -m:ftb u:name`. */
+/** Parses the reference-board query grammar: `! tag -tag -"video" s:100 -m:ftb u:name`. */
 export function parseTagQuery(q: string): TagQuery {
   const out: TagQuery = {
     advanced: false,
