@@ -2,7 +2,7 @@ packages:
   - app
   - packages/*
 
-# Dependencies allowed to run install scripts (pnpm blocks all others).
-onlyBuiltDependencies:
-  - esbuild
-  - sharp
+# Dependencies allowed to run install scripts (pnpm 12 blocks all others and fails the install).
+allowBuilds:
+  esbuild: true
+  sharp: true
