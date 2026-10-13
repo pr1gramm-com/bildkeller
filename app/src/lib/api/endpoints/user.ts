@@ -1,7 +1,10 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { ok, fail } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
+import { benis } from "@/lib/benis";
+import { readLog } from "@/lib/sync";
+import { getSettings, updateSettings } from "@/lib/settings";
 import {
   assertNonce,
   createSession,
@@ -94,4 +97,49 @@ register("user.info", async (ctx) => {
     promotedApps: [],
     subscriptions: [],
   });
+});
+
+register("user.sync", async (ctx) => {
+  if (!ctx.user) return fail("not logged in");
+  const userId = ctx.user.userId;
+  const offset = Number(ctx.query.get("offset") ?? 0) || 0;
+  const limit = Number(ctx.query.get("limit") ?? 1000) || 1000;
+
+  const unread = (type: string) =>
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(schema.notifications)
+      .where(and(eq(schema.notifications.userId, userId), eq(schema.notifications.type, type), eq(schema.notifications.read, false)))
+      .then((r) => Number(r[0].c));
+  const [mentions, comments, follows, messages, notificationsTotal, score, settings, log] = await Promise.all([
+    unread("mention"),
+    unread("comment"),
+    unread("follow"),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(schema.messages)
+      .where(and(eq(schema.messages.toId, userId), eq(schema.messages.read, false)))
+      .then((r) => Number(r[0].c)),
+    db
+      .select({ c: sql<number>`count(*)::int` })
+      .from(schema.notifications)
+      .where(and(eq(schema.notifications.userId, userId), eq(schema.notifications.read, false)))
+      .then((r) => Number(r[0].c)),
+    benis(userId),
+    getSettings(userId),
+    readLog(userId, offset, limit),
+  ]);
+
+  return ok({
+    inbox: { comments, mentions, messages, notifications: notificationsTotal, follows, digests: 0 },
+    ...log,
+    score,
+    settings,
+  });
+});
+
+register("user.sitesettings", async (ctx) => {
+  if (!ctx.user) return fail("not logged in");
+  assertNonce(ctx, ctx.user);
+  return ok({ settings: await updateSettings(ctx.user.userId, ctx.form) });
 });

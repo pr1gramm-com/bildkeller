@@ -9,6 +9,7 @@ import { maybePromote } from "@/lib/promote";
 import { assertNonce } from "@/lib/auth";
 import { uploadQuota } from "@/lib/ratelimit";
 import { parseTagQuery } from "@/lib/tagquery";
+import { logEvent } from "@/lib/sync";
 
 export type ApiItem = {
   id: number;
@@ -337,6 +338,7 @@ register("items.vote", async (ctx) => {
   const id = Number(ctx.form.id ?? 0);
   const up = ctx.form.up === "1" || ctx.form.up === "true";
   await voteTarget("items", id, up, user.userId);
+  await logEvent(user.userId, "vote", { target: "item", id, up });
   await maybePromote(id);
   return ok({});
 });
@@ -347,6 +349,7 @@ register("comments.vote", async (ctx) => {
   const id = Number(ctx.form.id ?? 0);
   const up = ctx.form.up === "1" || ctx.form.up === "true";
   await voteTarget("comments", id, up, user.userId);
+  await logEvent(user.userId, "vote", { target: "comment", id, up });
   return ok({});
 });
 
