@@ -1,15 +1,18 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
 import { wilson } from "@/lib/wilson";
+import { int } from "@/lib/params";
+import { MAX_COMMENT, visibleComment, visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
 
 function requireUser(ctx: ApiCtx): SessionUser {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   assertNonce(ctx, ctx.user);
   return ctx.user;
 }
@@ -22,9 +25,15 @@ async function notify(userId: number, type: "mention" | "comment", refId: number
 register("comments.post", async (ctx) => {
   const user = requireUser(ctx);
   const content = (ctx.form.content ?? "").trim();
-  const itemId = Number(ctx.form.itemId ?? 0);
-  const parentId = Number(ctx.form.parent ?? 0);
-  if (!content || !itemId) return fail("invalid");
+  const itemId = int(ctx.form.itemId, 0);
+  if (ctx.form.parent !== undefined && !/^\d+$/.test(ctx.form.parent)) return fail("invalid");
+  const parentId = int(ctx.form.parent, 0);
+  if (!content || content.length > MAX_COMMENT) return fail("invalid");
+  if (!(await visibleItem(user, itemId))) return fail("not found");
+  if (parentId > 0) {
+    const parent = await visibleComment(user, parentId);
+    if (!parent || parent.itemId !== itemId) return fail("invalid");
+  }
 
   const [c] = await db
     .insert(schema.comments)
@@ -69,7 +78,7 @@ register("comments.post", async (ctx) => {
 
 register("comments.edit", async (ctx) => {
   const user = requireUser(ctx);
-  const id = Number(ctx.form.id ?? 0);
+  const id = int(ctx.form.id, 0);
   const content = (ctx.form.content ?? "").trim();
   if (!content) return fail("invalid");
   const c = (await db.select().from(schema.comments).where(eq(schema.comments.id, id)).limit(1))[0];
@@ -84,7 +93,8 @@ register("comments.edit", async (ctx) => {
 });
 
 register("comments.getEditHistory", async (ctx) => {
-  const id = Number(ctx.query.get("id") ?? 0);
+  const id = int(ctx.query.get("id"), 0);
+  if (!(await visibleComment(ctx.user, id))) return fail("not found");
   const history = await db
     .select({ content: schema.commentEdits.content, edited: schema.commentEdits.edited })
     .from(schema.commentEdits)
@@ -95,9 +105,10 @@ register("comments.getEditHistory", async (ctx) => {
 
 register("comments.fav", async (ctx) => {
   const user = requireUser(ctx);
+  if (!(await visibleComment(user, int(ctx.form.id, 0)))) return fail("not found");
   await db
     .insert(schema.commentFavorites)
-    .values({ userId: user.userId, commentId: Number(ctx.form.id ?? 0) })
+    .values({ userId: user.userId, commentId: int(ctx.form.id, 0) })
     .onConflictDoNothing();
   return ok({});
 });
@@ -109,7 +120,7 @@ register("comments.unfav", async (ctx) => {
     .where(
       and(
         eq(schema.commentFavorites.userId, user.userId),
-        eq(schema.commentFavorites.commentId, Number(ctx.form.id ?? 0)),
+        eq(schema.commentFavorites.commentId, int(ctx.form.id, 0)),
       ),
     );
   return ok({});

@@ -1,7 +1,9 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, asc, desc, eq, gt, lt, sql, notInArray } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { ok, fail } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
+import { int } from "@/lib/params";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 import { effectiveFlags } from "@/lib/flags";
 import { wilson } from "@/lib/wilson";
@@ -10,6 +12,7 @@ import { assertNonce } from "@/lib/auth";
 import { uploadQuota } from "@/lib/ratelimit";
 import { parseTagQuery } from "@/lib/tagquery";
 import { logEvent } from "@/lib/sync";
+import { visibleComment, visibleItem } from "@/lib/visibility";
 import { addTag } from "@/lib/tags";
 
 export type ApiItem = {
@@ -81,11 +84,11 @@ export async function blockedUserIds(user: SessionUser | null): Promise<number[]
 const PAGE = 50;
 
 export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
-  const flags = effectiveFlags(user, Number(ctx.query.get("flags") ?? 31) || 31);
-  const promoted = Number(ctx.query.get("promoted") ?? 0);
+  const flags = effectiveFlags(user, int(ctx.query.get("flags"), 31));
+  const promoted = int(ctx.query.get("promoted"), 0);
   const showJunk = ctx.query.get("show_junk") === "1";
-  const idParam = Number(ctx.query.get("id") ?? 0);
-  const older = idParam > 0 ? idParam + 1 : Number(ctx.query.get("older") ?? 0);
+  const idParam = int(ctx.query.get("id"), 0);
+  const older = idParam > 0 ? idParam + 1 : int(ctx.query.get("older"), 0);
   const tq = parseTagQuery(ctx.query.get("tags") ?? "");
   const userName = ctx.query.get("user") ?? tq.user;
 
@@ -132,7 +135,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
 }
 
 export async function requireUser(ctx: ApiCtx): Promise<SessionUser> {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   return ctx.user;
 }
 
@@ -187,7 +190,7 @@ export async function voteTarget(
 }
 
 export async function itemsInfo(ctx: ApiCtx) {
-  const id = Number(ctx.query.get("itemId") ?? 0);
+  const id = int(ctx.query.get("itemId"), 0);
   const rows = await db
     .select({ item: schema.items, userName: schema.users.name, userMark: schema.users.mark })
     .from(schema.items)
@@ -307,7 +310,7 @@ register("items.post", async (ctx) => {
 
   for (const name of tagNames) await addTag(item.id, user.userId, name);
 
-  const collectionId = Number(ctx.form.targetCollectionId ?? 0);
+  const collectionId = int(ctx.form.targetCollectionId, 0);
   if (collectionId > 0) {
     const col = await db
       .select()
@@ -329,8 +332,9 @@ register("items.post", async (ctx) => {
 register("items.vote", async (ctx) => {
   const user = await requireUser(ctx);
   assertNonce(ctx, user);
-  const id = Number(ctx.form.id ?? 0);
+  const id = int(ctx.form.id, 0);
   const up = ctx.form.up === "1" || ctx.form.up === "true";
+  if (!(await visibleItem(user, id))) return fail("not found");
   await voteTarget("items", id, up, user.userId);
   await logEvent(user.userId, "vote", { target: "item", id, up });
   await maybePromote(id);
@@ -340,8 +344,9 @@ register("items.vote", async (ctx) => {
 register("comments.vote", async (ctx) => {
   const user = await requireUser(ctx);
   assertNonce(ctx, user);
-  const id = Number(ctx.form.id ?? 0);
+  const id = int(ctx.form.id, 0);
   const up = ctx.form.up === "1" || ctx.form.up === "true";
+  if (!(await visibleComment(user, id))) return fail("not found");
   await voteTarget("comments", id, up, user.userId);
   await logEvent(user.userId, "vote", { target: "comment", id, up });
   return ok({});
@@ -355,7 +360,7 @@ register("items.ratelimited", async (ctx) => {
 register("items.delete", async (ctx) => {
   const user = await requireUser(ctx);
   assertNonce(ctx, user);
-  const id = Number(ctx.form.id ?? 0);
+  const id = int(ctx.form.id, 0);
   const rows = await db.select().from(schema.items).where(eq(schema.items.id, id)).limit(1);
   const item = rows[0];
   if (!item) return fail("not found");

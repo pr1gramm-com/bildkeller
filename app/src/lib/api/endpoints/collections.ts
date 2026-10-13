@@ -1,15 +1,18 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
 import { collectionsOf, userByName } from "@/lib/collections";
+import { int } from "@/lib/params";
+import { visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
 
 function me(ctx: ApiCtx): SessionUser {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   assertNonce(ctx, ctx.user);
   return ctx.user;
 }
@@ -34,7 +37,7 @@ async function canWrite(id: number, userId: number): Promise<boolean> {
 
 register("collections.get", async (ctx) => {
   if (!ctx.user) return fail("not logged in");
-  return ok({ collections: await collectionsOf(ctx.user.userId, true), curatorCollections: [] });
+  return ok({ collections: await collectionsOf(ctx.user.userId, true, ctx.user), curatorCollections: [] });
 });
 
 register("collections.create", async (ctx) => {
@@ -81,9 +84,10 @@ register("collections.add", async (ctx) => {
   const user = me(ctx);
   const id = idOf(ctx);
   if (!(await canWrite(id, user.userId))) return fail("forbidden");
+  if (!(await visibleItem(user, int(ctx.form.itemId, 0)))) return fail("not found");
   await db
     .insert(schema.collectionItems)
-    .values({ collectionId: id, itemId: Number(ctx.form.itemId ?? 0), added: now() })
+    .values({ collectionId: id, itemId: int(ctx.form.itemId, 0), added: now() })
     .onConflictDoNothing();
   return ok({});
 });
@@ -94,7 +98,7 @@ register("collections.remove", async (ctx) => {
   if (!(await canWrite(id, user.userId))) return fail("forbidden");
   await db
     .delete(schema.collectionItems)
-    .where(and(eq(schema.collectionItems.collectionId, id), eq(schema.collectionItems.itemId, Number(ctx.form.itemId ?? 0))));
+    .where(and(eq(schema.collectionItems.collectionId, id), eq(schema.collectionItems.itemId, int(ctx.form.itemId, 0))));
   return ok({});
 });
 
@@ -140,9 +144,10 @@ register("collections.removeCurator", async (ctx) => {
 // Item bookmarks (own definition; see docs/api-spec.md).
 register("bookmarks.add", async (ctx) => {
   const user = me(ctx);
+  if (!(await visibleItem(user, int(ctx.form.itemId, 0)))) return fail("not found");
   await db
     .insert(schema.bookmarks)
-    .values({ userId: user.userId, itemId: Number(ctx.form.itemId ?? 0), created: now() })
+    .values({ userId: user.userId, itemId: int(ctx.form.itemId, 0), created: now() })
     .onConflictDoNothing();
   return ok({});
 });
@@ -151,7 +156,7 @@ register("bookmarks.delete", async (ctx) => {
   const user = me(ctx);
   await db
     .delete(schema.bookmarks)
-    .where(and(eq(schema.bookmarks.userId, user.userId), eq(schema.bookmarks.itemId, Number(ctx.form.itemId ?? 0))));
+    .where(and(eq(schema.bookmarks.userId, user.userId), eq(schema.bookmarks.itemId, int(ctx.form.itemId, 0))));
   return ok({});
 });
 

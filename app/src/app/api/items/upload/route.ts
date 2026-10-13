@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { ok, fail } from "@/lib/api/envelope";
 import { getSessionUser } from "@/lib/auth";
 import { storeUpload } from "@/lib/media";
-import { uploadQuota } from "@/lib/ratelimit";
+import { purgeStaleUploads, uploadQuota } from "@/lib/ratelimit";
 
 /** Phase 1 of the upload flow: store media, return a staging key. */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json(fail("not logged in"));
 
+  await purgeStaleUploads();
   const left = await uploadQuota(user.userId);
   if (left <= 0) return NextResponse.json({ ...fail("ratelimited"), left: 0 });
 
+  const max = Number(process.env.MAX_UPLOAD_BYTES ?? 50 * 1024 * 1024);
+  if (Number(req.headers.get("content-length") ?? 0) > max + 64 * 1024) {
+    return NextResponse.json(fail("too large"));
+  }
   const form = await req.formData().catch(() => null);
   const file = form?.get("image");
   if (!(file instanceof File)) return NextResponse.json(fail("no file"));
+  if (file.size > max) return NextResponse.json(fail("too large"));
 
   const buf = Buffer.from(await file.arrayBuffer());
   try {

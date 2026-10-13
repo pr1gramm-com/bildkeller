@@ -1,5 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
+import { itemVisible } from "./visibility";
+import type { SessionUser } from "./types";
 
 export type ApiCollection = {
   id: number;
@@ -30,16 +32,20 @@ export async function ensureDefaultCollection(userId: number): Promise<void> {
   }
 }
 
-export async function toApiCollection(c: typeof schema.collections.$inferSelect): Promise<ApiCollection> {
+export async function toApiCollection(
+  c: typeof schema.collections.$inferSelect,
+  viewer: SessionUser | null,
+): Promise<ApiCollection> {
   const [count] = await db
     .select({ c: sql<number>`count(*)::int` })
     .from(schema.collectionItems)
-    .where(eq(schema.collectionItems.collectionId, c.id));
+    .innerJoin(schema.items, eq(schema.items.id, schema.collectionItems.itemId))
+    .where(and(eq(schema.collectionItems.collectionId, c.id), itemVisible(viewer)));
   const items = await db
     .select({ id: schema.items.id, thumb: schema.items.thumb, preview: schema.items.preview, flags: schema.items.flags })
     .from(schema.collectionItems)
     .innerJoin(schema.items, eq(schema.items.id, schema.collectionItems.itemId))
-    .where(and(eq(schema.collectionItems.collectionId, c.id), eq(schema.items.deleted, false)))
+    .where(and(eq(schema.collectionItems.collectionId, c.id), itemVisible(viewer)))
     .orderBy(desc(schema.collectionItems.added))
     .limit(10);
   return {
@@ -53,10 +59,14 @@ export async function toApiCollection(c: typeof schema.collections.$inferSelect)
   };
 }
 
-export async function collectionsOf(userId: number, includePrivate: boolean): Promise<ApiCollection[]> {
+export async function collectionsOf(
+  userId: number,
+  includePrivate: boolean,
+  viewer: SessionUser | null,
+): Promise<ApiCollection[]> {
   await ensureDefaultCollection(userId);
   const rows = await db.select().from(schema.collections).where(eq(schema.collections.userId, userId));
-  return Promise.all(rows.filter((c) => includePrivate || c.isPublic).map(toApiCollection));
+  return Promise.all(rows.filter((c) => includePrivate || c.isPublic).map((c) => toApiCollection(c, viewer)));
 }
 
 export async function userByName(name: string) {

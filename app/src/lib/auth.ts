@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, eq, isNull, or, gt } from "drizzle-orm";
 import { hashSync, verify } from "@node-rs/argon2";
 import { randomBytes } from "node:crypto";
@@ -12,8 +13,8 @@ type MeMap = Record<string, string>;
 export function parseMeCookie(value: string | undefined): MeMap {
   if (!value) return {};
   try {
-    const json = Buffer.from(value, "base64url").toString("utf8");
-    return JSON.parse(json) as MeMap;
+    const parsed: unknown = JSON.parse(Buffer.from(value, "base64url").toString("utf8"));
+    return parsed && typeof parsed === "object" ? (parsed as MeMap) : {};
   } catch {
     return {};
   }
@@ -115,6 +116,6 @@ export function setMeCookie(
 /** CSRF: every logged-in POST must carry _nonce = first 16 chars of the session token. */
 export function assertNonce(ctx: Pick<ApiCtx, "form">, user: SessionUser): void {
   if (ctx.form._nonce !== user.id.slice(0, 16)) {
-    throw new Error("csrf");
+    throw new ApiError("csrf");
   }
 }

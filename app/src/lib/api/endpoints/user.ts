@@ -1,3 +1,4 @@
+import { int } from "@/lib/params";
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { ok, fail } from "@/lib/api/envelope";
@@ -104,8 +105,8 @@ register("user.info", async (ctx) => {
 register("user.sync", async (ctx) => {
   if (!ctx.user) return fail("not logged in");
   const userId = ctx.user.userId;
-  const offset = Number(ctx.query.get("offset") ?? 0) || 0;
-  const limit = Number(ctx.query.get("limit") ?? 1000) || 1000;
+  const offset = int(ctx.query.get("offset"), 0);
+  const limit = int(ctx.query.get("limit"), 1000);
 
   const unread = (type: string) =>
     db

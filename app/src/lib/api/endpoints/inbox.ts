@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
@@ -9,7 +10,7 @@ import type { ApiCtx } from "@/lib/types";
 const now = () => Math.floor(Date.now() / 1000);
 
 function me(ctx: ApiCtx, write = false) {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   if (write) assertNonce(ctx, ctx.user);
   return ctx.user;
 }

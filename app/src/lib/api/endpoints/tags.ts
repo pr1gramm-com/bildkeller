@@ -1,13 +1,16 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
 import { addTag } from "@/lib/tags";
+import { itemVisible, MAX_TAG, visibleItem } from "@/lib/visibility";
+import { int } from "@/lib/params";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 function requireUser(ctx: ApiCtx): SessionUser {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   assertNonce(ctx, ctx.user);
   return ctx.user;
 }
@@ -19,22 +22,23 @@ async function findTag(name: string) {
 
 register("tags.add", async (ctx) => {
   const user = requireUser(ctx);
-  const itemId = Number(ctx.form.itemId ?? 0);
+  const itemId = int(ctx.form.itemId, 0);
   const names = (ctx.form.tags ?? "")
     .split(",")
     .map((t) => t.trim().toLowerCase())
     .filter(Boolean);
-  if (!itemId || names.length === 0) return fail("invalid");
+  if (names.length === 0 || names.length > 16 || names.some((n) => n.length > MAX_TAG)) return fail("invalid");
+  if (!(await visibleItem(user, itemId))) return fail("not found");
   for (const name of names) await addTag(itemId, user.userId, name);
   return ok({});
 });
 
 register("tags.vote", async (ctx) => {
   const user = requireUser(ctx);
-  const itemId = Number(ctx.form.itemId ?? 0);
+  const itemId = int(ctx.form.itemId, 0);
   const up = ctx.form.up === "1" || ctx.form.up === "true";
   const tag = await findTag((ctx.form.tag ?? "").toLowerCase());
-  if (!tag) return fail("not found");
+  if (!tag || !(await visibleItem(user, itemId))) return fail("not found");
 
   const where = and(
     eq(schema.itemTagVotes.userId, user.userId),
@@ -72,7 +76,7 @@ register("tags.vote", async (ctx) => {
 register("tags.delete", async (ctx) => {
   const user = requireUser(ctx);
   if (!user.mod && !user.admin) return fail("forbidden");
-  const itemId = Number(ctx.form.itemId ?? 0);
+  const itemId = int(ctx.form.itemId, 0);
   const tag = await findTag((ctx.form.tag ?? "").toLowerCase());
   if (!tag) return fail("not found");
   await db
@@ -81,11 +85,13 @@ register("tags.delete", async (ctx) => {
   return ok({});
 });
 
-register("tags.top", async () => {
+register("tags.top", async (ctx) => {
   const rows = await db
     .select({ tag: schema.tags.tag, c: sql<number>`count(*)::int` })
     .from(schema.itemTags)
     .innerJoin(schema.tags, eq(schema.tags.id, schema.itemTags.tagId))
+    .innerJoin(schema.items, eq(schema.items.id, schema.itemTags.itemId))
+    .where(itemVisible(ctx.user))
     .groupBy(schema.tags.tag)
     .orderBy(desc(sql`count(*)`))
     .limit(100);

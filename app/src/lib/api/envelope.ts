@@ -14,3 +14,6 @@ export function fail(error: string): ApiPayload {
 
 export const json = (payload: ApiPayload): Response =>
   Response.json(payload, { status: 200 });
+
+/** Domain error whose message is safe to show to API clients. Anything else becomes a generic error. */
+export class ApiError extends Error {}

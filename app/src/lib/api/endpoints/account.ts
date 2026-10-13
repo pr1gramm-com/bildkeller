@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/envelope";
 import { randomBytes } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
@@ -5,14 +6,16 @@ import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce, createSession, hashPassword, setMeCookie, verifyPassword } from "@/lib/auth";
 import { config } from "@/lib/config";
+import { MAX_MESSAGE, MAX_REASON, visibleComment, visibleItem } from "@/lib/visibility";
 import { userByName } from "@/lib/collections";
+import { int } from "@/lib/params";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
 const MAX_OPEN_INVITES = 3;
 
 function me(ctx: ApiCtx): SessionUser {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   assertNonce(ctx, ctx.user);
   return ctx.user;
 }
@@ -106,9 +109,10 @@ register("user.changepassword", async (ctx) => {
 register("contact.report", async (ctx) => {
   const user = me(ctx);
   const reason = (ctx.form.reason ?? "").trim();
-  const itemId = Number(ctx.form.itemId ?? 0) || null;
-  const commentId = Number(ctx.form.commentId ?? 0) || null;
-  if (!reason || (!itemId && !commentId)) return fail("invalid");
+  const itemId = int(ctx.form.itemId, 0) || null;
+  const commentId = int(ctx.form.commentId, 0) || null;
+  if (!reason || reason.length > MAX_REASON || (ctx.form.message ?? "").length > MAX_MESSAGE) return fail("invalid");
+  if (!(itemId ? await visibleItem(user, itemId) : await visibleComment(user, commentId ?? 0))) return fail("not found");
   await db
     .insert(schema.reports)
     .values({ userId: user.userId, itemId, commentId, reason, message: ctx.form.message ?? "", created: now() });

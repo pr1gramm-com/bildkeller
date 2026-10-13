@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
@@ -39,56 +39,84 @@ export type StoredMedia = {
 };
 
 const THUMB_WIDTH = 200;
+const MAX_SIDE = 1280;
+const EXEC = { timeout: 30_000, maxBuffer: 10 * 1024 * 1024 };
+
+const scaled = (w: number, h: number) => {
+  const k = Math.min(1, MAX_SIDE / Math.max(w, h, 1));
+  return { width: Math.round(w * k), height: Math.round(h * k) };
+};
 
 export async function storeUpload(buf: Buffer): Promise<StoredMedia> {
   const mime = detectMime(buf);
   if (!mime) throw new Error("invalid");
   const sha = createHash("sha256").update(buf).digest("hex");
-  const rel = `${new Date().getFullYear()}/${String(new Date().getMonth() + 1).padStart(2, "0")}/${String(new Date().getDate()).padStart(2, "0")}`;
+  const now = new Date();
+  const rel = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, "0")}/${String(now.getDate()).padStart(2, "0")}`;
   const dir = path.join(MEDIA_DIR, rel);
   await mkdir(dir, { recursive: true });
+
+  const imageRel = `${rel}/${sha}.${mime.ext}`;
+  const thumbRel = `${rel}/${sha}.t.jpg`;
+  const written: string[] = [];
+  const out = (name: string) => {
+    const full = path.join(dir, name);
+    written.push(full);
+    return full;
+  };
 
   let width = 0;
   let height = 0;
   let audio = false;
-
-  if (!mime.video) {
-    const img = sharp(buf, { animated: mime.ext === "gif" });
-    const meta = await img.metadata();
-    width = meta.width ?? 0;
-    height = meta.height ?? 0;
-    await writeFile(path.join(dir, `${sha}.${mime.ext}`), buf);
-    await img.resize({ width: Math.min(THUMB_WIDTH, width || THUMB_WIDTH) }).jpeg().toFile(path.join(dir, `${sha}.jpg`));
-  } else {
-    const tmpIn = path.join(dir, `${sha}.${mime.ext}`);
-    await writeFile(tmpIn, buf);
-    // dimensions + audio via ffprobe, thumb via ffmpeg
-    const probe = await execFileP("ffprobe", [
-      "-v", "error", "-print_format", "json", "-show_streams", "-show_format", tmpIn,
-    ]).catch(() => null);
-    if (probe) {
-      const info = JSON.parse(probe.stdout) as {
-        streams: Array<{ codec_type: string; width?: number; height?: number }>;
-      };
+  try {
+    if (!mime.video) {
+      // First frame only: animated inputs would otherwise report all frames stacked.
+      const meta = await sharp(buf).metadata();
+      width = meta.width ?? 0;
+      height = meta.height ?? 0;
+      if (!width || !height) throw new Error("invalid");
+      // JPEGs are re-encoded (auto-rotated) which also drops EXIF/GPS; other formats keep their bytes.
+      if (mime.ext === "jpg") {
+        const clean = await sharp(buf).rotate().jpeg({ quality: 90 }).toBuffer({ resolveWithObject: true });
+        width = clean.info.width;
+        height = clean.info.height;
+        await writeFile(out(`${sha}.jpg`), clean.data);
+      } else {
+        await writeFile(out(`${sha}.${mime.ext}`), buf);
+      }
+      await sharp(buf).rotate().resize({ width: Math.min(THUMB_WIDTH, width) }).jpeg().toFile(out(`${sha}.t.jpg`));
+    } else {
+      const src = out(`${sha}.${mime.ext}`);
+      await writeFile(src, buf);
+      const probe = await execFileP(
+        "ffprobe",
+        ["-v", "error", "-print_format", "json", "-show_streams", src],
+        EXEC,
+      );
+      const info = JSON.parse(probe.stdout) as { streams: Array<{ codec_type: string; width?: number; height?: number }> };
       const video = info.streams.find((s) => s.codec_type === "video");
-      width = video?.width ?? 0;
-      height = video?.height ?? 0;
+      if (!video?.width || !video.height) throw new Error("invalid");
+      width = video.width;
+      height = video.height;
       audio = info.streams.some((s) => s.codec_type === "audio");
+      const thumb = out(`${sha}.t.jpg`);
+      const frame = (ss: string[]) =>
+        execFileP("ffmpeg", ["-y", ...ss, "-i", src, "-frames:v", "1", "-vf", `scale=${THUMB_WIDTH}:-2`, thumb], EXEC);
+      await frame(["-ss", "1"]).catch(() => frame([]));
     }
-    await execFileP("ffmpeg", [
-      "-y", "-ss", "1", "-i", tmpIn, "-frames:v", "1", "-vf", `scale=${THUMB_WIDTH}:-2`, path.join(dir, `${sha}.jpg`),
-    ]).catch(async () => {
-      await execFileP("ffmpeg", ["-y", "-i", tmpIn, "-frames:v", "1", path.join(dir, `${sha}.jpg`)]);
-    });
+  } catch {
+    await Promise.all(written.map((f) => rm(f, { force: true })));
+    throw new Error("invalid");
   }
 
+  const fit = scaled(width, height);
   return {
     key: randomBytes(16).toString("hex"),
-    image: `${rel}/${sha}.${mime.ext}`,
-    thumb: `${rel}/${sha}.jpg`,
+    image: imageRel,
+    thumb: thumbRel,
     fullsize: "",
-    width: Math.min(width, 1280),
-    height: Math.min(height, 1280),
+    width: fit.width,
+    height: fit.height,
     originalWidth: width,
     originalHeight: height,
     audio,

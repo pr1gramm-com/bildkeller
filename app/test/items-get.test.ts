@@ -104,8 +104,8 @@ describe("items.get", () => {
   });
 
   it("show_junk=1 includes junk items", async () => {
-    const withJunk = await json(await handle(req("/api/items/get?flags=1&promoted=0&show_junk=1"), ["items", "get"]));
-    const withoutJunk = await json(await handle(req("/api/items/get?flags=1&promoted=0"), ["items", "get"]));
+    const withJunk = await json(await handle(req("/api/items/get?flags=1&promoted=0&show_junk=1&user=feedowner"), ["items", "get"]));
+    const withoutJunk = await json(await handle(req("/api/items/get?flags=1&promoted=0&user=feedowner"), ["items", "get"]));
     expect((withJunk.items as unknown[]).length).toBeGreaterThan((withoutJunk.items as unknown[]).length);
   });
 

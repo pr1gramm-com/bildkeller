@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { fail, json, type ApiPayload } from "./envelope";
+import { ApiError, fail, json, type ApiPayload } from "./envelope";
 import type { ApiCtx, ApiHandler } from "@/lib/types";
 import { getSessionUser } from "@/lib/auth";
 
@@ -13,8 +13,9 @@ export function register(name: string, handler: ApiHandler): void {
 async function parseForm(req: NextRequest): Promise<Record<string, string>> {
   const type = req.headers.get("content-type") ?? "";
   if (type.includes("application/json")) {
-    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
-    return Object.fromEntries(Object.entries(body).map(([k, v]) => [k, String(v)]));
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return {};
+    return Object.fromEntries(Object.entries(body as Record<string, unknown>).map(([k, v]) => [k, String(v)]));
   }
   if (type.includes("multipart/form-data")) {
     const fd = await req.formData();
@@ -25,30 +26,26 @@ async function parseForm(req: NextRequest): Promise<Record<string, string>> {
 }
 
 export async function handle(req: NextRequest, path: string[]): Promise<Response> {
-  const name = path.join("/");
-  const handler = handlers.get(name);
-  if (!handler) {
-    return json(fail("unknown endpoint"));
-  }
-  const url = new URL(req.url);
-  const ctx: ApiCtx = {
-    user: await getSessionUser(req),
-    query: url.searchParams,
-    form: req.method === "POST" ? await parseForm(req) : {},
-    req,
-    outCookies: [],
-  };
+  const handler = handlers.get(path.join("/"));
+  if (!handler) return json(fail("unknown endpoint"));
+
+  const ctx: ApiCtx = { user: null, query: new URL(req.url).searchParams, form: {}, req, outCookies: [] };
   let payload: ApiPayload;
   try {
+    ctx.user = await getSessionUser(req);
+    if (req.method === "POST") ctx.form = await parseForm(req);
     payload = await handler(ctx);
   } catch (e) {
-    payload = fail(e instanceof Error ? e.message : "error");
+    // Only ApiError messages are meant for clients; DB/runtime errors stay in the server log.
+    if (!(e instanceof ApiError)) console.error(`[api] ${path.join("/")}:`, e);
+    payload = fail(e instanceof ApiError ? e.message : "error");
   }
   const res = json(payload);
+  const secure = req.headers.get("x-forwarded-proto") === "https" || new URL(req.url).protocol === "https:";
   for (const c of ctx.outCookies) {
     res.headers.append(
       "set-cookie",
-      `${c.name}=${c.value}; Path=/; Max-Age=${c.maxAge ?? 315360000}; SameSite=Lax`,
+      `${c.name}=${c.value}; Path=/; Max-Age=${c.maxAge ?? 315360000}; SameSite=Lax${secure ? "; Secure" : ""}`,
     );
   }
   return res;

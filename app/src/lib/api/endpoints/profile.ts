@@ -1,3 +1,4 @@
+import { ApiError } from "@/lib/api/envelope";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
@@ -6,13 +7,15 @@ import { assertNonce } from "@/lib/auth";
 import { benis } from "@/lib/benis";
 import { collectionsOf, toApiCollection, userByName } from "@/lib/collections";
 import { effectiveFlags } from "@/lib/flags";
+import { int } from "@/lib/params";
+import { itemVisible } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
 const count = (q: Promise<Array<{ c: number }>>) => q.then((r) => Number(r[0].c));
 
 function requireUser(ctx: ApiCtx): SessionUser {
-  if (!ctx.user) throw new Error("not logged in");
+  if (!ctx.user) throw new ApiError("not logged in");
   assertNonce(ctx, ctx.user);
   return ctx.user;
 }
@@ -25,7 +28,7 @@ async function targetOf(ctx: ApiCtx, key: "name" | "tag" = "name") {
 register("profile.info", async (ctx) => {
   const target = await userByName(ctx.query.get("name") ?? "");
   if (!target || target.deleted) return fail("not found");
-  const mask = effectiveFlags(ctx.user, Number(ctx.query.get("flags") ?? 31) || 31);
+  const mask = effectiveFlags(ctx.user, int(ctx.query.get("flags"), 31));
   const visible = and(
     eq(schema.items.userId, target.id),
     eq(schema.items.deleted, false),
@@ -76,6 +79,7 @@ register("profile.info", async (ctx) => {
           and(
             eq(schema.comments.userId, target.id),
             eq(schema.comments.deleted, false),
+            eq(schema.items.deleted, false),
             sql`(${schema.items.flags} & ${mask}) != 0`,
           ),
         )
@@ -93,7 +97,7 @@ register("profile.info", async (ctx) => {
           .from(schema.blocks)
           .where(and(eq(schema.blocks.userId, viewer), eq(schema.blocks.blockedUserId, target.id))),
       ),
-      collectionsOf(target.id, isSelf),
+      collectionsOf(target.id, isSelf, ctx.user),
       count(
         db
           .select({ c: sql<number>`count(*)::int` })
@@ -147,8 +151,8 @@ register("profile.info", async (ctx) => {
 register("profile.comments", async (ctx) => {
   const target = await userByName(ctx.query.get("name") ?? "");
   if (!target) return fail("not found");
-  const mask = effectiveFlags(ctx.user, Number(ctx.query.get("flags") ?? 31) || 31);
-  const before = Number(ctx.query.get("before") ?? 0);
+  const mask = effectiveFlags(ctx.user, int(ctx.query.get("flags"), 31));
+  const before = int(ctx.query.get("before"), 0);
   const rows = await db
     .select({
       id: schema.comments.id,
@@ -165,6 +169,7 @@ register("profile.comments", async (ctx) => {
       and(
         eq(schema.comments.userId, target.id),
         eq(schema.comments.deleted, false),
+        eq(schema.items.deleted, false),
         sql`(${schema.items.flags} & ${mask}) != 0`,
         before > 0 ? sql`${schema.comments.id} < ${before}` : undefined,
       ),
@@ -190,7 +195,7 @@ register("profile.commentlikes", async (ctx) => {
     .from(schema.commentFavorites)
     .innerJoin(schema.comments, eq(schema.comments.id, schema.commentFavorites.commentId))
     .innerJoin(schema.items, eq(schema.items.id, schema.comments.itemId))
-    .where(eq(schema.commentFavorites.userId, ctx.user.userId))
+    .where(and(eq(schema.commentFavorites.userId, ctx.user.userId), eq(schema.comments.deleted, false), itemVisible(ctx.user)))
     .orderBy(desc(schema.comments.id))
     .limit(50);
   return ok({ comments: rows, hasOlder: false });
@@ -293,6 +298,10 @@ register("user.collectionfollowlist", async (ctx) => {
     .innerJoin(schema.collections, eq(schema.collections.id, schema.subscriptions.collectionId))
     .innerJoin(schema.users, eq(schema.users.id, schema.collections.userId))
     .where(eq(schema.subscriptions.userId, ctx.user.userId));
-  const collections = await Promise.all(cols.map(async (r) => ({ ...(await toApiCollection(r.c)), owner: { name: r.owner } })));
+  const viewer = ctx.user;
+  const readable = cols.filter((r) => r.c.isPublic || r.c.userId === viewer.userId);
+  const collections = await Promise.all(
+    readable.map(async (r) => ({ ...(await toApiCollection(r.c, viewer)), owner: { name: r.owner } })),
+  );
   return ok({ collections });
 });

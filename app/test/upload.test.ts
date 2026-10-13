@@ -1,6 +1,9 @@
 import { describe, beforeAll, expect, it } from "vitest";
 import { eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import sharp from "sharp";
 import { db, schema } from "@bildkeller/db";
 import { handle } from "@/lib/api/router";
@@ -19,6 +22,8 @@ async function json(res: Response) {
 
 let token = "";
 let verifiedToken = "";
+let verifiedToken2 = "";
+const MEDIA = path.resolve(process.env.MEDIA_DIR ?? "./data/media");
 let userDbId = 0;
 
 async function pngBuffer(color = { r: 255, g: 0, b: 0 }): Promise<Buffer> {
@@ -37,6 +42,7 @@ beforeAll(async () => {
   userDbId = user.id;
   token = await createSession(user.id);
   verifiedToken = await createSession(verified.id);
+  verifiedToken2 = await createSession((await createTestUser("uploader-media", { verified: true })).id);
 });
 
 describe("items/upload (phase 1)", () => {
@@ -135,5 +141,63 @@ describe("items.post (phase 2)", () => {
     const third = await json(await uploadImage(await pngBuffer(), "pic.png", verifiedToken));
     expect(third.error).toBe("ratelimited");
     await db.delete(schema.siteConfig).where(eq(schema.siteConfig.key, "upload.ratelimit.count"));
+  });
+});
+
+describe("media integrity (review findings)", () => {
+  const fromKey = async (key: string) =>
+    (await db.select().from(schema.uploads).where(eq(schema.uploads.key, key)))[0];
+
+  it("a JPEG keeps its original size; the thumbnail is a separate file", async () => {
+    const jpg = await sharp({ create: { width: 800, height: 600, channels: 3, background: { r: 9, g: 99, b: 199 } } }).jpeg().toBuffer();
+    const body = await json(await uploadImage(jpg, "p.jpg", verifiedToken2));
+    const up = await fromKey(body.key as string);
+    expect(up.image).not.toBe(up.thumb);
+    const stored = await sharp(path.join(MEDIA, up.image)).metadata();
+    expect([stored.width, stored.height]).toEqual([800, 600]);
+    const thumb = await sharp(path.join(MEDIA, up.thumb)).metadata();
+    expect(thumb.width).toBe(200);
+  });
+
+  it("an animated GIF reports the frame size, not frames stacked", async () => {
+    const tmp = path.join(MEDIA, "..", "anim.gif");
+    execFileSync("ffmpeg", ["-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc=size=100x50:rate=3", "-frames:v", "3", tmp]);
+    const body = await json(await uploadImage(readFileSync(tmp), "a.gif", verifiedToken2));
+    const up = await fromKey(body.key as string);
+    expect([up.originalWidth, up.originalHeight]).toEqual([100, 50]);
+    const thumb = await sharp(path.join(MEDIA, up.thumb)).metadata();
+    expect(thumb.height).toBe(50);
+  });
+
+  it("scales proportionally instead of clamping each side", async () => {
+    const wide = await sharp({ create: { width: 3000, height: 2000, channels: 3, background: { r: 1, g: 2, b: 3 } } }).png().toBuffer();
+    const up = await fromKey(((await json(await uploadImage(wide, "w.png", verifiedToken2))).key as string));
+    expect([up.width, up.height]).toEqual([1280, 853]);
+    expect([up.originalWidth, up.originalHeight]).toEqual([3000, 2000]);
+  });
+
+  it("rejects files above the size cap", async () => {
+    process.env.MAX_UPLOAD_BYTES = "1000";
+    try {
+      const big = await sharp({ create: { width: 200, height: 200, channels: 3, background: { r: 5, g: 6, b: 7 } } }).png({ compressionLevel: 0 }).toBuffer();
+      expect(big.length).toBeGreaterThan(1000);
+      expect((await json(await uploadImage(big, "big.png", verifiedToken2))).error).toBe("too large");
+    } finally {
+      delete process.env.MAX_UPLOAD_BYTES;
+    }
+  });
+
+  it("staged-but-unposted uploads count against the quota", async () => {
+    const u = await createTestUser("stager", { verified: true });
+    const t = await createSession(u.id);
+    await db.insert(schema.siteConfig).values({ key: "upload.ratelimit.count", value: 2 }).onConflictDoUpdate({ target: schema.siteConfig.key, set: { value: 2 } });
+    try {
+      const mk = (n: number) => sharp({ create: { width: 8, height: 8, channels: 3, background: { r: n, g: n, b: n } } }).png().toBuffer();
+      expect((await json(await uploadImage(await mk(11), "1.png", t))).error).toBeNull();
+      expect((await json(await uploadImage(await mk(22), "2.png", t))).error).toBeNull();
+      expect((await json(await uploadImage(await mk(33), "3.png", t))).error).toBe("ratelimited");
+    } finally {
+      await db.delete(schema.siteConfig).where(eq(schema.siteConfig.key, "upload.ratelimit.count"));
+    }
   });
 });
