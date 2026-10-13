@@ -229,6 +229,7 @@ export async function itemsInfo(ctx: ApiCtx) {
     .where(and(eq(schema.comments.itemId, id), eq(schema.comments.deleted, false)))
     .orderBy(asc(schema.comments.id));
 
+  const blocked = new Set(await blockedUserIds(ctx.user));
   return ok({
     tags: tagRows.map((t) => ({ id: t.id, tag: t.tag, confidence: wilson(t.up, t.down) })),
     comments: commentRows.map((c) => ({
@@ -243,7 +244,7 @@ export async function itemsInfo(ctx: ApiCtx) {
       confidence: wilson(c.comment.up, c.comment.down),
       name: c.userName,
       mark: c.userMark,
-      blocked: false,
+      blocked: blocked.has(c.comment.userId),
     })),
     views: Number(viewsRows[0]?.total ?? 0),
   });
