@@ -2,3 +2,4 @@
 import "@/lib/api/endpoints/user";
 import "@/lib/api/endpoints/items";
 import "@/lib/api/endpoints/tags";
+import "@/lib/api/endpoints/comments";
