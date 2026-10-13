@@ -32,6 +32,14 @@ describe("/media", () => {
     expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("234");
   });
 
+  it("clamps a suffix range larger than the file", async () => {
+    const res = await call(["t", "a.png"], { range: "bytes=-999999" });
+    expect(res.status).toBe(206);
+    expect(res.headers.get("content-range")).toBe("bytes 0-9/10");
+    const last = await call(["t", "a.png"], { range: "bytes=-4" });
+    expect(Buffer.from(await last.arrayBuffer()).toString()).toBe("6789");
+  });
+
   it("blocks path traversal", async () => {
     expect((await call(["..", "secret.txt"])).status).toBe(404);
     expect((await call(["t", "..", "..", "secret.txt"])).status).toBe(404);

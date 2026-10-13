@@ -1,10 +1,10 @@
-import { ApiError } from "@/lib/api/envelope";
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
-import { fail, ok } from "@/lib/api/envelope";
+import { ApiError, fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce, createSession, hashPassword, setMeCookie, verifyPassword } from "@/lib/auth";
+import { clientIp, limit } from "@/lib/limiter";
 import { config } from "@/lib/config";
 import { MAX_MESSAGE, MAX_REASON, visibleComment, visibleItem } from "@/lib/visibility";
 import { userByName } from "@/lib/collections";
@@ -43,46 +43,47 @@ register("user.loadinvite", async (ctx) => {
 });
 
 register("user.joinwithinvite", async (ctx) => {
+  limit(`join:ip:${clientIp(ctx.req)}`, 10, 3600);
   const name = (ctx.form.name ?? "").trim();
   const password = ctx.form.password ?? "";
   if (!/^[\p{L}\p{N}_-]{2,32}$/u.test(name)) return fail("invalid name");
-  if (password.length < 8) return fail("password too short");
-
-  const total = Number(
-    (await db.select({ c: sql<number>`count(*)::int` }).from(schema.users))[0].c,
-  );
-  const first = total === 0; // bootstrap: the very first account becomes admin, no invite needed
+  if (password.length < 8 || password.length > 200) return fail("password too short");
+  const passwordHash = await hashPassword(password); // slow: done before taking the lock
   const required = (await config("invites.required")) !== false;
 
-  let inviteId: number | null = null;
-  if (!first && required) {
-    if (!ctx.form.invite) return fail("invite required");
-    const inv = (
-      await db
-        .select()
-        .from(schema.invites)
-        .where(and(eq(schema.invites.code, ctx.form.invite), isNull(schema.invites.usedBy)))
-        .limit(1)
-    )[0];
-    if (!inv) return fail("invalid invite");
-    inviteId = inv.id;
-  }
-  if (await userByName(name)) return fail("name taken");
+  // One transaction under an advisory lock: invite use and the first-account bootstrap cannot race.
+  const created = await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(7001)`);
+    const total = Number((await tx.select({ c: sql<number>`count(*)::int` }).from(schema.users))[0].c);
+    const first = total === 0; // bootstrap: the very first account becomes admin, no invite needed
+    const needInvite = !first && required;
+    if (needInvite && !ctx.form.invite) throw new ApiError("invite required");
+    const taken = await tx.select({ id: schema.users.id }).from(schema.users).where(sql`lower(${schema.users.name}) = ${name.toLowerCase()}`).limit(1);
+    if (taken.length > 0) throw new ApiError("name taken");
 
-  const [created] = await db
-    .insert(schema.users)
-    .values({
-      name,
-      email: ctx.form.email || null,
-      passwordHash: hashPassword(password),
-      verified: first || ctx.form.ageVerified === "1",
-      admin: first,
-      mod: first,
-      inviteId,
-      created: now(),
-    })
-    .returning();
-  if (inviteId) await db.update(schema.invites).set({ usedBy: created.id }).where(eq(schema.invites.id, inviteId));
+    const [user] = await tx
+      .insert(schema.users)
+      .values({
+        name,
+        email: ctx.form.email || null,
+        passwordHash,
+        verified: first || ctx.form.ageVerified === "1",
+        admin: first,
+        mod: first,
+        created: now(),
+      })
+      .returning();
+    if (needInvite) {
+      const used = await tx
+        .update(schema.invites)
+        .set({ usedBy: user.id })
+        .where(and(eq(schema.invites.code, ctx.form.invite), isNull(schema.invites.usedBy)))
+        .returning();
+      if (used.length === 0) throw new ApiError("invalid invite"); // rolls the user insert back
+      await tx.update(schema.users).set({ inviteId: used[0].id }).where(eq(schema.users.id, user.id));
+    }
+    return user;
+  });
 
   const token = await createSession(created.id);
   setMeCookie(ctx, { id: token, name: created.name, mark: created.mark, verified: created.verified, admin: created.admin });
@@ -102,12 +103,15 @@ register("user.changepassword", async (ctx) => {
   const next = ctx.form.password ?? ctx.form.new ?? "";
   if (!row || !(await verifyPassword(ctx.form.old ?? "", row.passwordHash))) return fail("invalid credentials");
   if (next.length < 8) return fail("password too short");
-  await db.update(schema.users).set({ passwordHash: hashPassword(next) }).where(eq(schema.users.id, user.userId));
+  await db.update(schema.users).set({ passwordHash: await hashPassword(next) }).where(eq(schema.users.id, user.userId));
+  // Sign out every other device.
+  await db.delete(schema.sessions).where(and(eq(schema.sessions.userId, user.userId), ne(schema.sessions.token, user.id)));
   return ok({});
 });
 
 register("contact.report", async (ctx) => {
   const user = me(ctx);
+  limit(`report:${user.userId}`, 10, 60);
   const reason = (ctx.form.reason ?? "").trim();
   const itemId = int(ctx.form.itemId, 0) || null;
   const commentId = int(ctx.form.commentId, 0) || null;

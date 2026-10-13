@@ -6,6 +6,7 @@ import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
 import { collectionsOf, userByName } from "@/lib/collections";
 import { int } from "@/lib/params";
+import { limit } from "@/lib/limiter";
 import { visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
@@ -42,8 +43,11 @@ register("collections.get", async (ctx) => {
 
 register("collections.create", async (ctx) => {
   const user = me(ctx);
+  limit(`collection:${user.userId}`, 20, 3600);
   const name = (ctx.form.name ?? "").trim();
-  if (!name) return fail("invalid");
+  if (!name || name.length > 100) return fail("invalid");
+  const owned = await db.select({ id: schema.collections.id }).from(schema.collections).where(eq(schema.collections.userId, user.userId));
+  if (owned.length >= 50) return fail("collection limit");
   const [c] = await db
     .insert(schema.collections)
     .values({

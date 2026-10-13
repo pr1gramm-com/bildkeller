@@ -56,4 +56,6 @@ These could not be observed from the outside, or are simplified. Clients should 
   `profile.preview`, `faq.*`, `stats.user` are not implemented.
 - Search prefixes for date range, resolution and `-m:<mark>` are parsed-and-ignored (`s:` and `u:` work).
 - Not implemented families: casino, slots, polls, calendar, secretsanta, memes, pr0mium/payments, oauth, push, SSE tiles.
+- `items.get` accepts `limit` (1–50). The popular feed (`promoted=1`) pages by `(promoted, id)`; `older` is the last item's id.
+- Rate limits answer `{"error": "rate limited"}`; uploads are capped (`MAX_UPLOAD_BYTES`, default 50 MB, answer `too large`).
 - Reposts: exact SHA-256 match of the uploaded file (no perceptual hashing yet).

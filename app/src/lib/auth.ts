@@ -1,12 +1,13 @@
 import { ApiError } from "@/lib/api/envelope";
 import { and, eq, isNull, or, gt } from "drizzle-orm";
-import { hashSync, verify } from "@node-rs/argon2";
+import { hash, verify } from "@node-rs/argon2";
 import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { db, schema } from "@bildkeller/db";
 import type { ApiCtx, SessionUser } from "./types";
 
 const ME_COOKIE = "me";
+const SESSION_TTL = 365 * 86400; // sessions expire after a year
 
 type MeMap = Record<string, string>;
 
@@ -44,11 +45,12 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
   const token = map.id;
   if (!token || token.length !== 32) return null;
 
+  const oldest = Math.floor(Date.now() / 1000) - SESSION_TTL;
   const rows = await db
     .select({ user: schema.users })
     .from(schema.sessions)
     .innerJoin(schema.users, eq(schema.users.id, schema.sessions.userId))
-    .where(eq(schema.sessions.token, token))
+    .where(and(eq(schema.sessions.token, token), gt(schema.sessions.created, oldest)))
     .limit(1);
   const row = rows[0];
   if (!row || row.user.deleted) return null;
@@ -70,8 +72,16 @@ export { ME_COOKIE };
 
 const TEN_YEARS = 315360000;
 
-export function hashPassword(password: string): string {
-  return hashSync(password);
+// OWASP-recommended argon2id parameters (19 MiB, 2 passes).
+export function hashPassword(password: string): Promise<string> {
+  return hash(password, { memoryCost: 19456, timeCost: 2, parallelism: 1 });
+}
+
+let dummyHash: Promise<string> | undefined;
+/** Burns the same time as a real check so unknown usernames are not distinguishable by latency. */
+export async function verifyDummy(password: string): Promise<void> {
+  dummyHash ??= hashPassword("bildkeller-dummy");
+  await verify(await dummyHash, password).catch(() => false);
 }
 
 export async function verifyPassword(password: string, hash: string): Promise<boolean> {

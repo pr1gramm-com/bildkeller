@@ -85,7 +85,7 @@ describe("moderation", () => {
   });
 
   it("ban blocks login and kills the session", async () => {
-    await db.update(schema.users).set({ passwordHash: hashPassword("passw0rd!") }).where(eq(schema.users.id, user.id));
+    await db.update(schema.users).set({ passwordHash: await hashPassword("passw0rd!") }).where(eq(schema.users.id, user.id));
     const ban = await json(await post("/api/admin/ban", { name: user.name, reason: "test", days: "7" }, mod.token));
     expect(ban.error).toBeNull();
     expect((await json(await get("/api/user/validate", user.token))).error).toBe("not logged in");

@@ -28,7 +28,7 @@ beforeAll(async () => {
   const now = Math.floor(Date.now() / 1000);
   const [user] = await db
     .insert(schema.users)
-    .values({ name: "alice", passwordHash: hashPassword(PASSWORD), created: now })
+    .values({ name: "alice", passwordHash: await hashPassword(PASSWORD), created: now })
     .returning();
   token = await createSession(user.id);
 });

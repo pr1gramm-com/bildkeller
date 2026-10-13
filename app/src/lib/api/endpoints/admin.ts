@@ -50,7 +50,9 @@ register("admin.ban", async (ctx) => {
   const target = await userByName(ctx.form.name ?? "");
   if (!target) return fail("not found");
   if (target.admin || target.id === mod.userId) return fail("forbidden");
-  const days = int(ctx.form.days, 0);
+  const rawDays = ctx.form.days ?? "";
+  if (rawDays !== "" && !/^[1-9]\d{0,4}$/.test(rawDays)) return fail("invalid");
+  const days = int(rawDays, 0);
   await db.insert(schema.bans).values({
     userId: target.id,
     reason: ctx.form.reason ?? "",

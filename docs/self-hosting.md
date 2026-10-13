@@ -6,7 +6,7 @@ Docker with Compose, ~1 GB RAM, disk for media (`media-data` volume).
 ## Configuration
 | Variable | Default | Purpose |
 |---|---|---|
-| `POSTGRES_PASSWORD` | `change-me` | database password — **change it** |
+| `POSTGRES_PASSWORD` | `change-me` | database password — **change it**; use letters/digits only (it is embedded in a URL). Postgres ignores later changes once the volume exists |
 | `PORT` | `3000` | published port |
 | `DATABASE_URL` | set by compose | PostgreSQL connection string |
 | `MEDIA_DIR` | `/data/media` | where uploads are stored (content-addressed) |
@@ -31,6 +31,8 @@ INSERT INTO site_config (key, value) VALUES ('invites.required', 'false')
 3. Create invites under *Einstellungen → Einladungscode erzeugen*.
 
 ## Reverse proxy / TLS
+Rate limits (login, registration, comments, messages) are per process and keyed by the first `X-Forwarded-For` entry, so run behind a proxy that sets it. Cookies get `Secure` automatically when `X-Forwarded-Proto: https`.
+
 Put any reverse proxy (Caddy, nginx, Traefik) in front of port 3000. Media is served at `/media/*` with
 long-lived immutable caching headers; a CDN can sit in front of that path.
 

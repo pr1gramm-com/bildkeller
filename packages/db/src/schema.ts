@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  index,
   primaryKey,
   bigserial,
   boolean,
@@ -41,7 +42,7 @@ export const sessions = pgTable("sessions", {
     .notNull()
     .references(() => users.id),
   created: int("created").notNull(),
-});
+}, (t) => [index("sessions_user_idx").on(t.userId)]);
 
 export const items = pgTable("items", {
   id: big("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
@@ -68,7 +69,7 @@ export const items = pgTable("items", {
   dhash: text("dhash"),
   up: int("up").notNull().default(0),
   down: int("down").notNull().default(0),
-});
+}, (t) => [index("items_user_idx").on(t.userId), index("items_dhash_idx").on(t.dhash)]);
 
 export const comments = pgTable("comments", {
   id: big("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
@@ -84,7 +85,7 @@ export const comments = pgTable("comments", {
   up: int("up").notNull().default(0),
   down: int("down").notNull().default(0),
   deleted: boolean("deleted").notNull().default(false),
-});
+}, (t) => [index("comments_item_idx").on(t.itemId), index("comments_user_idx").on(t.userId)]);
 
 export const votes = pgTable(
   "votes",
@@ -216,7 +217,7 @@ export const follows = pgTable(
       .notNull()
       .references(() => users.id),
   },
-  (t) => [primaryKey({ columns: [t.followerId, t.followeeId] })],
+  (t) => [primaryKey({ columns: [t.followerId, t.followeeId] }), index("follows_followee_idx").on(t.followeeId)],
 );
 
 export const subscriptions = pgTable(
@@ -243,7 +244,7 @@ export const messages = pgTable("messages", {
   content: text("content").notNull(),
   created: int("created").notNull(),
   read: boolean("read").notNull().default(false),
-});
+}, (t) => [index("messages_from_idx").on(t.fromId), index("messages_to_idx").on(t.toId)]);
 
 export const notifications = pgTable("notifications", {
   id: big("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
@@ -254,7 +255,7 @@ export const notifications = pgTable("notifications", {
   refId: big("ref_id", { mode: "number" }).notNull().default(0),
   created: int("created").notNull(),
   read: boolean("read").notNull().default(false),
-});
+}, (t) => [index("notifications_user_idx").on(t.userId)]);
 
 export const bookmarks = pgTable(
   "bookmarks",
@@ -326,7 +327,7 @@ export const bans = pgTable("bans", {
   until: int("until"), // null = permanent
   createdBy: int("created_by").notNull(),
   created: int("created").notNull(),
-});
+}, (t) => [index("bans_user_idx").on(t.userId)]);
 
 export const syncLog = pgTable("sync_log", {
   id: big("id", { mode: "number" }).primaryKey().generatedByDefaultAsIdentity(),
@@ -336,7 +337,7 @@ export const syncLog = pgTable("sync_log", {
   type: text("type").notNull(),
   payload: jsonb("payload").notNull().default({}),
   created: int("created").notNull(),
-});
+}, (t) => [index("sync_log_user_idx").on(t.userId, t.id)]);
 
 export const userSettings = pgTable("user_settings", {
   userId: int("user_id")
@@ -366,4 +367,4 @@ export const uploads = pgTable("uploads", {
   audio: boolean("audio").notNull().default(false),
   dhash: text("dhash").notNull(),
   created: int("created").notNull(),
-});
+}, (t) => [index("uploads_user_idx").on(t.userId)]);

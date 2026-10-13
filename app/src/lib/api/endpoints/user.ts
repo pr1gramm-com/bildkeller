@@ -4,12 +4,14 @@ import { db, schema } from "@bildkeller/db";
 import { ok, fail } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { benis } from "@/lib/benis";
+import { clientIp, limit } from "@/lib/limiter";
 import { readLog } from "@/lib/sync";
 import { getSettings, updateSettings } from "@/lib/settings";
 import {
   assertNonce,
   createSession,
   hasActiveBan,
+  verifyDummy,
   setMeCookie,
   verifyPassword,
 } from "@/lib/auth";
@@ -38,6 +40,8 @@ register("user.login", async (ctx) => {
   const name = (ctx.form.name ?? "").trim();
   const password = ctx.form.password ?? "";
   if (!name || !password) return fail("invalid login");
+  limit(`login:ip:${clientIp(ctx.req)}`, 20, 600);
+  limit(`login:name:${name.toLowerCase()}`, 8, 600);
 
   const rows = await db
     .select()
@@ -45,9 +49,11 @@ register("user.login", async (ctx) => {
     .where(sql`lower(${schema.users.name}) = ${name.toLowerCase()}`)
     .limit(1);
   const user = rows[0];
-  if (!user || user.deleted || !(await verifyPassword(password, user.passwordHash))) {
+  if (!user || user.deleted) {
+    await verifyDummy(password);
     return fail("invalid credentials");
   }
+  if (!(await verifyPassword(password, user.passwordHash))) return fail("invalid credentials");
 
   if (await hasActiveBan(user.id)) return fail("banned");
   const token = await createSession(user.id);

@@ -1,10 +1,12 @@
 import { ApiError } from "@/lib/api/envelope";
-import { and, asc, desc, eq, inArray, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
 import { userByName } from "@/lib/collections";
+import { limit } from "@/lib/limiter";
+import { MAX_MESSAGE } from "@/lib/visibility";
 import type { ApiCtx } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -17,45 +19,48 @@ function me(ctx: ApiCtx, write = false) {
 
 register("inbox.conversations", async (ctx) => {
   const user = me(ctx);
-  const rows = await db
-    .select()
-    .from(schema.messages)
-    .where(or(eq(schema.messages.fromId, user.userId), eq(schema.messages.toId, user.userId)))
-    .orderBy(desc(schema.messages.id))
-    .limit(1000);
+  const uid = user.userId;
+  // One row per counterpart: newest message id and unread count, computed in SQL (no row cap to evict others).
+  const grouped = await db.execute<{ peer: number; last_id: number; unread: number }>(sql`
+    select peer, max(id)::int as last_id, sum(case when to_id = ${uid} and not read then 1 else 0 end)::int as unread
+    from (
+      select id, to_id, read, case when from_id = ${uid} then to_id else from_id end as peer
+      from messages where from_id = ${uid} or to_id = ${uid}
+    ) m
+    group by peer order by last_id desc limit 200`);
+  const rows = grouped.rows;
+  if (rows.length === 0) return ok({ atEnd: true, conversations: [] });
 
-  const byPeer = new Map<number, { last: (typeof rows)[number]; unread: number }>();
-  for (const m of rows) {
-    const peer = m.fromId === user.userId ? m.toId : m.fromId;
-    const entry = byPeer.get(peer) ?? { last: m, unread: 0 };
-    if (m.toId === user.userId && !m.read) entry.unread += 1;
-    byPeer.set(peer, entry);
-  }
-  const peers = [...byPeer.keys()];
-  const users = peers.length
-    ? await db.select().from(schema.users).where(inArray(schema.users.id, peers))
-    : [];
-  const blocked = new Set(
-    (await db.select().from(schema.blocks).where(eq(schema.blocks.userId, user.userId))).map((b) => b.blockedUserId),
-  );
+  const lastIds = rows.map((r) => r.last_id);
+  const peers = rows.map((r) => r.peer);
+  const [lasts, users, blockedRows] = await Promise.all([
+    db.select().from(schema.messages).where(inArray(schema.messages.id, lastIds)),
+    db.select().from(schema.users).where(inArray(schema.users.id, peers)),
+    db.select().from(schema.blocks).where(eq(schema.blocks.userId, uid)),
+  ]);
+  const lastById = new Map(lasts.map((m) => [m.id, m]));
+  const userById = new Map(users.map((u) => [u.id, u]));
+  const blocked = new Set(blockedRows.map((b) => b.blockedUserId));
 
   return ok({
     atEnd: true,
-    conversations: users.map((u) => {
-      const e = byPeer.get(u.id)!;
-      return {
+    conversations: rows.flatMap((r) => {
+      const u = userById.get(r.peer);
+      const last = lastById.get(r.last_id);
+      if (!u || !last) return [];
+      return [{
         mark: u.mark,
         name: u.name,
-        lastMessage: e.last.created,
-        unreadCount: e.unread,
+        lastMessage: last.created,
+        unreadCount: r.unread,
         blocked: blocked.has(u.id) ? 1 : 0,
         canReceiveMessages: 1,
         archived: 0,
         favorited: 0,
-        lastMessagePreview: e.last.content.slice(0, 80),
-        lastMessageFromMe: e.last.fromId === user.userId ? 1 : 0,
+        lastMessagePreview: last.content.slice(0, 80),
+        lastMessageFromMe: last.fromId === uid ? 1 : 0,
         avatar: null,
-      };
+      }];
     }),
   });
 });
@@ -87,9 +92,10 @@ register("inbox.messages", async (ctx) => {
 
 register("inbox.post", async (ctx) => {
   const user = me(ctx, true);
+  limit(`dm:${user.userId}`, 20, 60);
   const to = await userByName(ctx.form.to ?? "");
   const content = (ctx.form.comment ?? "").trim();
-  if (!to || !content || to.id === user.userId) return fail("invalid");
+  if (!to || !content || content.length > MAX_MESSAGE || to.id === user.userId) return fail("invalid");
   const blockedByRecipient = await db
     .select()
     .from(schema.blocks)

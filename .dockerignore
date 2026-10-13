@@ -3,6 +3,11 @@ node_modules
 .next
 **/.next
 data
+**/data
 .git
 .superpowers
+.env
+.env.*
+!.env.example
 *.har
+*.tsbuildinfo

@@ -6,6 +6,7 @@ import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
 import { wilson } from "@/lib/wilson";
 import { int } from "@/lib/params";
+import { limit } from "@/lib/limiter";
 import { MAX_COMMENT, visibleComment, visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
@@ -24,6 +25,7 @@ async function notify(userId: number, type: "mention" | "comment", refId: number
 
 register("comments.post", async (ctx) => {
   const user = requireUser(ctx);
+  limit(`comment:${user.userId}`, 30, 60);
   const content = (ctx.form.content ?? "").trim();
   const itemId = int(ctx.form.itemId, 0);
   if (ctx.form.parent !== undefined && !/^\d+$/.test(ctx.form.parent)) return fail("invalid");

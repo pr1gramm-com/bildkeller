@@ -1,4 +1,6 @@
 import { ApiError } from "@/lib/api/envelope";
+import { rm } from "node:fs/promises";
+import path from "node:path";
 import { and, asc, desc, eq, gt, lt, sql, notInArray } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { ok, fail } from "@/lib/api/envelope";
@@ -81,7 +83,7 @@ export async function blockedUserIds(user: SessionUser | null): Promise<number[]
   return rows.map((r) => r.id);
 }
 
-const PAGE = 50;
+const MAX_PAGE = 50;
 
 export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const flags = effectiveFlags(user, int(ctx.query.get("flags"), 31));
@@ -89,6 +91,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const showJunk = ctx.query.get("show_junk") === "1";
   const idParam = int(ctx.query.get("id"), 0);
   const older = idParam > 0 ? idParam + 1 : int(ctx.query.get("older"), 0);
+  const pageSize = Math.min(Math.max(int(ctx.query.get("limit"), MAX_PAGE), 1), MAX_PAGE);
   const tq = parseTagQuery(ctx.query.get("tags") ?? "");
   const userName = ctx.query.get("user") ?? tq.user;
 
@@ -107,7 +110,11 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   if (tq.mediaExclude.includes("repost")) conds.push(eq(schema.items.repost, false));
   if (!showJunk) conds.push(eq(schema.items.junk, false));
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
-  if (older > 0) conds.push(lt(schema.items.id, older));
+  if (older > 0 && promoted === 1 && idParam === 0) {
+    // Popular feed is ordered by (promoted, id): page by that pair, not by id alone.
+    const cur = (await db.select({ p: schema.items.promoted }).from(schema.items).where(eq(schema.items.id, older)).limit(1))[0];
+    conds.push(cur ? sql`(${schema.items.promoted}, ${schema.items.id}) < (${cur.p}, ${older})` : lt(schema.items.id, older));
+  } else if (older > 0) conds.push(lt(schema.items.id, older));
   if (userName) conds.push(sql`lower(${schema.users.name}) = ${userName.toLowerCase()}`);
   const blocked = await blockedUserIds(user);
   if (blocked.length > 0) conds.push(notInArray(schema.items.userId, blocked));
@@ -124,13 +131,13 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     .orderBy(
       ...(promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
     )
-    .limit(PAGE + 1);
+    .limit(pageSize + 1);
 
-  const page = rows.slice(0, PAGE);
+  const page = rows.slice(0, pageSize);
   return ok({
     items: page.map(toItem),
     atStart: older === 0,
-    atEnd: rows.length <= PAGE,
+    atEnd: rows.length <= pageSize,
   });
 }
 
@@ -151,42 +158,32 @@ export async function voteTarget(
   userId: number,
 ): Promise<void> {
   const idCol = table === "items" ? schema.votes.itemId : schema.votes.commentId;
-  const existing = await db
-    .select()
-    .from(schema.votes)
-    .where(and(eq(schema.votes.userId, userId), eq(idCol, id)))
-    .limit(1);
-
+  const target = table === "items" ? schema.items : schema.comments;
   const upCol = table === "items" ? schema.items.up : schema.comments.up;
   const downCol = table === "items" ? schema.items.down : schema.comments.down;
 
-  if (existing.length === 0) {
-    await db.insert(schema.votes).values(
-      table === "items"
-        ? { userId, itemId: id, up, created: Math.floor(Date.now() / 1000) }
-        : { userId, commentId: id, up, created: Math.floor(Date.now() / 1000) },
-    );
-    await db
-      .update(table === "items" ? schema.items : schema.comments)
-      .set(up ? { up: sql`${upCol} + 1` } : { down: sql`${downCol} + 1` })
-      .where(eq(table === "items" ? schema.items.id : schema.comments.id, id));
-  } else if (existing[0].up === up) {
-    await db.delete(schema.votes).where(eq(schema.votes.id, existing[0].id));
-    await db
-      .update(table === "items" ? schema.items : schema.comments)
-      .set(up ? { up: sql`greatest(${upCol} - 1, 0)` } : { down: sql`greatest(${downCol} - 1, 0)` })
-      .where(eq(table === "items" ? schema.items.id : schema.comments.id, id));
-  } else {
-    await db.update(schema.votes).set({ up }).where(eq(schema.votes.id, existing[0].id));
-    await db
-      .update(table === "items" ? schema.items : schema.comments)
-      .set(
-        up
-          ? { up: sql`${upCol} + 1`, down: sql`greatest(${downCol} - 1, 0)` }
-          : { down: sql`${downCol} + 1`, up: sql`greatest(${upCol} - 1, 0)` },
-      )
-      .where(eq(table === "items" ? schema.items.id : schema.comments.id, id));
-  }
+  // Serialize per (user, target): the vote row and the denormalized counters change atomically.
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vote:${table}:${userId}:${id}`}))`);
+    const existing = (await tx.select().from(schema.votes).where(and(eq(schema.votes.userId, userId), eq(idCol, id))).limit(1))[0];
+    if (!existing) {
+      await tx.insert(schema.votes).values(
+        table === "items"
+          ? { userId, itemId: id, up, created: Math.floor(Date.now() / 1000) }
+          : { userId, commentId: id, up, created: Math.floor(Date.now() / 1000) },
+      );
+      await tx.update(target).set(up ? { up: sql`${upCol} + 1` } : { down: sql`${downCol} + 1` }).where(eq(target.id, id));
+    } else if (existing.up === up) {
+      await tx.delete(schema.votes).where(eq(schema.votes.id, existing.id));
+      await tx.update(target).set(up ? { up: sql`greatest(${upCol} - 1, 0)` } : { down: sql`greatest(${downCol} - 1, 0)` }).where(eq(target.id, id));
+    } else {
+      await tx.update(schema.votes).set({ up }).where(eq(schema.votes.id, existing.id));
+      await tx
+        .update(target)
+        .set(up ? { up: sql`${upCol} + 1`, down: sql`greatest(${downCol} - 1, 0)` } : { down: sql`${downCol} + 1`, up: sql`greatest(${upCol} - 1, 0)` })
+        .where(eq(target.id, id));
+    }
+  });
 }
 
 export async function itemsInfo(ctx: ApiCtx) {
@@ -272,6 +269,8 @@ register("items.post", async (ctx) => {
     .filter(Boolean);
   if (tagNames.length > 16) return fail("taglimit");
 
+  const source = (ctx.form.source ?? "").trim();
+  if (source && (source.length > 500 || !/^https?:\/\//i.test(source))) return fail("invalid");
   const key = ctx.form.key ?? "";
   const upRows = await db
     .select()
@@ -301,7 +300,7 @@ register("items.post", async (ctx) => {
       originalWidth: up.originalWidth,
       originalHeight: up.originalHeight,
       audio: up.audio,
-      source: ctx.form.source ?? "",
+      source,
       created: Math.floor(Date.now() / 1000),
       key: up.key,
       dhash: up.dhash,
@@ -366,5 +365,8 @@ register("items.delete", async (ctx) => {
   if (!item) return fail("not found");
   if (item.userId !== user.userId && !user.mod && !user.admin) return fail("forbidden");
   await db.update(schema.items).set({ deleted: true }).where(eq(schema.items.id, id));
+  // Removed content must not stay reachable under its immutable-cached media URL.
+  const root = path.resolve(process.env.MEDIA_DIR ?? "./data/media");
+  await Promise.all([item.image, item.thumb].map((f) => rm(path.join(root, f), { force: true })));
   return ok({});
 });

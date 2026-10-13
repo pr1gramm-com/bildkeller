@@ -40,35 +40,38 @@ register("tags.vote", async (ctx) => {
   const tag = await findTag((ctx.form.tag ?? "").toLowerCase());
   if (!tag || !(await visibleItem(user, itemId))) return fail("not found");
 
-  const where = and(
-    eq(schema.itemTagVotes.userId, user.userId),
-    eq(schema.itemTagVotes.itemId, itemId),
-    eq(schema.itemTagVotes.tagId, tag.id),
-  );
-  const existing = (await db.select().from(schema.itemTagVotes).where(where).limit(1))[0];
-  const counters = (inc: boolean, dec: boolean | null) => ({
-    ...(inc ? { up: sql`${schema.itemTags.up} + 1` } : { down: sql`${schema.itemTags.down} + 1` }),
-    ...(dec === null
-      ? {}
-      : dec
-        ? { up: sql`greatest(${schema.itemTags.up} - 1, 0)` }
-        : { down: sql`greatest(${schema.itemTags.down} - 1, 0)` }),
-  });
-  const target = and(eq(schema.itemTags.itemId, itemId), eq(schema.itemTags.tagId, tag.id));
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`tagvote:${user.userId}:${itemId}:${tag.id}`}))`);
+    const where = and(
+      eq(schema.itemTagVotes.userId, user.userId),
+      eq(schema.itemTagVotes.itemId, itemId),
+      eq(schema.itemTagVotes.tagId, tag.id),
+    );
+    const existing = (await tx.select().from(schema.itemTagVotes).where(where).limit(1))[0];
+    const counters = (inc: boolean, dec: boolean | null) => ({
+      ...(inc ? { up: sql`${schema.itemTags.up} + 1` } : { down: sql`${schema.itemTags.down} + 1` }),
+      ...(dec === null
+        ? {}
+        : dec
+          ? { up: sql`greatest(${schema.itemTags.up} - 1, 0)` }
+          : { down: sql`greatest(${schema.itemTags.down} - 1, 0)` }),
+    });
+    const target = and(eq(schema.itemTags.itemId, itemId), eq(schema.itemTags.tagId, tag.id));
 
-  if (!existing) {
-    await db.insert(schema.itemTagVotes).values({ userId: user.userId, itemId, tagId: tag.id, up });
-    await db.update(schema.itemTags).set(counters(up, null)).where(target);
-  } else if (existing.up === up) {
-    await db.delete(schema.itemTagVotes).where(where);
-    await db
-      .update(schema.itemTags)
-      .set(up ? { up: sql`greatest(${schema.itemTags.up} - 1, 0)` } : { down: sql`greatest(${schema.itemTags.down} - 1, 0)` })
-      .where(target);
-  } else {
-    await db.update(schema.itemTagVotes).set({ up }).where(where);
-    await db.update(schema.itemTags).set(counters(up, !up)).where(target);
-  }
+    if (!existing) {
+      await tx.insert(schema.itemTagVotes).values({ userId: user.userId, itemId, tagId: tag.id, up });
+      await tx.update(schema.itemTags).set(counters(up, null)).where(target);
+    } else if (existing.up === up) {
+      await tx.delete(schema.itemTagVotes).where(where);
+      await tx
+        .update(schema.itemTags)
+        .set(up ? { up: sql`greatest(${schema.itemTags.up} - 1, 0)` } : { down: sql`greatest(${schema.itemTags.down} - 1, 0)` })
+        .where(target);
+    } else {
+      await tx.update(schema.itemTagVotes).set({ up }).where(where);
+      await tx.update(schema.itemTags).set(counters(up, !up)).where(target);
+    }
+  });
   return ok({});
 });
 
