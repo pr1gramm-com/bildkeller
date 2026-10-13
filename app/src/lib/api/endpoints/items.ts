@@ -8,6 +8,7 @@ import { wilson } from "@/lib/wilson";
 import { maybePromote } from "@/lib/promote";
 import { assertNonce } from "@/lib/auth";
 import { uploadQuota } from "@/lib/ratelimit";
+import { parseTagQuery } from "@/lib/tagquery";
 
 export type ApiItem = {
   id: number;
@@ -82,12 +83,22 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const promoted = Number(ctx.query.get("promoted") ?? 0);
   const showJunk = ctx.query.get("show_junk") === "1";
   const older = Number(ctx.query.get("older") ?? 0);
-  const userName = ctx.query.get("user");
+  const tq = parseTagQuery(ctx.query.get("tags") ?? "");
+  const userName = ctx.query.get("user") ?? tq.user;
+
+  const hasTag = (tag: string) =>
+    sql`exists (select 1 from item_tags it join tags t on t.id = it.tag_id where it.item_id = ${schema.items.id} and t.tag = ${tag})`;
 
   const conds = [
+    ...tq.include.map(hasTag),
+    ...tq.exclude.map((t) => sql`not ${hasTag(t)}`),
     eq(schema.items.deleted, false),
     sql`(${schema.items.flags} & ${flags}) != 0`,
   ];
+  if (tq.score !== null) conds.push(sql`(${schema.items.up} - ${schema.items.down}) >= ${tq.score}`);
+  if (tq.mediaExclude.includes("video")) conds.push(sql`${schema.items.image} !~ '\\.(webm|mp4|mov)$'`);
+  if (tq.mediaExclude.includes("sound")) conds.push(eq(schema.items.audio, false));
+  if (tq.mediaExclude.includes("repost")) conds.push(eq(schema.items.repost, false));
   if (!showJunk) conds.push(eq(schema.items.junk, false));
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
   if (older > 0) conds.push(lt(schema.items.id, older));
