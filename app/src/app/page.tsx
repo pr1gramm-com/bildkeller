@@ -1,3 +1,2 @@
-export default function Home() {
-  return <main>Bildkeller</main>;
-}
+import Feed from "@/components/Feed";
+export default function Home() { return <Feed promoted={0} />; }

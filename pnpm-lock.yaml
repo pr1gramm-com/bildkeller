@@ -193,12 +193,18 @@ importers:
       '@types/node':
         specifier: ^24.0.0
         version: 24.19.2
+      '@types/pg':
+        specifier: ^8.23.1
+        version: 8.23.1
       '@types/react':
         specifier: ^19.0.0
         version: 19.3.0
       '@types/react-dom':
         specifier: ^19.0.0
         version: 19.3.0(@types/react@19.3.0)
+      pg:
+        specifier: ^8.23.1
+        version: 8.23.1
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

@@ -9,7 +9,7 @@ export default defineConfig({
     environment: "node",
     include: ["test/**/*.test.ts"],
     env: {
-      DATABASE_URL: "postgres://localhost:5432/bildkeller_test",
+      DATABASE_URL: `${process.env.TEST_PG_URL ?? "postgres://localhost:5432"}/bildkeller_test`,
       SESSION_SECRET: "0".repeat(64),
       MEDIA_DIR: "./data/test-media",
     },

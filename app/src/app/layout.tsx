@@ -1,3 +1,6 @@
+import "./globals.css";
+import Header from "@/components/Header";
+
 export const metadata = {
   title: "Bildkeller",
   description: "Self-hosted imageboard",
@@ -6,7 +9,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de">
-      <body>{children}</body>
+      <body>
+        <Header />
+        <main>{children}</main>
+      </body>
     </html>
   );
 }

@@ -1,19 +1,18 @@
 import { execSync } from "node:child_process";
+import pg from "pg";
 
-const TEST_DB = "postgres://localhost:5432/bildkeller_test";
+const BASE = process.env.TEST_PG_URL ?? "postgres://localhost:5432";
 
-export default function globalSetup() {
-  execSync(
-    `psql -h localhost -d postgres -c "DROP DATABASE IF EXISTS bildkeller_test" -c "CREATE DATABASE bildkeller_test"`,
-    { stdio: "pipe" },
-  );
+export default async function globalSetup() {
+  const admin = new pg.Client({ connectionString: `${BASE}/postgres` });
+  await admin.connect();
+  await admin.query("DROP DATABASE IF EXISTS bildkeller_test");
+  await admin.query("CREATE DATABASE bildkeller_test");
+  await admin.end();
+
   execSync("npx drizzle-kit push --force", {
-    cwd: path(),
-    env: { ...process.env, DATABASE_URL: TEST_DB },
+    cwd: new URL("../../packages/db", import.meta.url).pathname,
+    env: { ...process.env, DATABASE_URL: `${BASE}/bildkeller_test` },
     stdio: "pipe",
   });
-}
-
-function path() {
-  return new URL("../../packages/db", import.meta.url).pathname;
 }
