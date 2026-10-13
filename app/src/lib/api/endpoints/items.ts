@@ -240,6 +240,86 @@ export async function itemsInfo(ctx: ApiCtx) {
 register("items.get", itemsGet);
 register("items.info", itemsInfo);
 
+register("items.post", async (ctx) => {
+  const user = await requireUser(ctx);
+  assertNonce(ctx, user);
+
+  const flagsMap: Record<string, number> = { sfw: 1, nsfw: 2, nsfl: 4, nsfp: 8, pol: 16 };
+  const flags = flagsMap[ctx.form.sfwstatus ?? "sfw"] ?? 1;
+  if ((flags & 6) !== 0 && !user.verified) return fail("verification required");
+
+  const tagNames = (ctx.form.tags ?? "")
+    .split(",")
+    .map((t) => t.trim().toLowerCase())
+    .filter(Boolean);
+  if (tagNames.length > 16) return fail("taglimit");
+
+  const key = ctx.form.key ?? "";
+  const upRows = await db
+    .select()
+    .from(schema.uploads)
+    .where(and(eq(schema.uploads.key, key), eq(schema.uploads.userId, user.userId)))
+    .limit(1);
+  const up = upRows[0];
+  if (!up) return fail("invalid key");
+
+  const dup = await db
+    .select({ id: schema.items.id })
+    .from(schema.items)
+    .where(and(eq(schema.items.dhash, up.dhash), eq(schema.items.deleted, false)))
+    .limit(1);
+  if (dup.length > 0) return fail("similar");
+
+  const [item] = await db
+    .insert(schema.items)
+    .values({
+      userId: user.userId,
+      flags,
+      image: up.image,
+      thumb: up.thumb,
+      fullsize: up.fullsize,
+      width: up.width,
+      height: up.height,
+      originalWidth: up.originalWidth,
+      originalHeight: up.originalHeight,
+      audio: up.audio,
+      source: ctx.form.source ?? "",
+      created: Math.floor(Date.now() / 1000),
+      key: up.key,
+      dhash: up.dhash,
+    })
+    .returning();
+
+  for (const name of tagNames) {
+    const existing = await db.select().from(schema.tags).where(eq(schema.tags.tag, name)).limit(1);
+    const tag =
+      existing[0] ??
+      (await db.insert(schema.tags).values({ tag: name }).returning())[0];
+    await db
+      .insert(schema.itemTags)
+      .values({ itemId: item.id, tagId: tag.id })
+      .onConflictDoNothing();
+  }
+
+  const collectionId = Number(ctx.form.targetCollectionId ?? 0);
+  if (collectionId > 0) {
+    const col = await db
+      .select()
+      .from(schema.collections)
+      .where(and(eq(schema.collections.id, collectionId), eq(schema.collections.userId, user.userId)))
+      .limit(1);
+    if (col[0]) {
+      await db
+        .insert(schema.collectionItems)
+        .values({ collectionId, itemId: item.id, added: item.created })
+        .onConflictDoNothing();
+    }
+  }
+
+  await db.delete(schema.uploads).where(eq(schema.uploads.key, key));
+  return ok({ itemId: item.id, promoted: item.promoted, flags: item.flags });
+});
+
 register("items.vote", async (ctx) => {
   const user = await requireUser(ctx);
   assertNonce(ctx, user);

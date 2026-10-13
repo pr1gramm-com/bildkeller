@@ -349,3 +349,21 @@ export const siteConfig = pgTable("site_config", {
   key: text("key").primaryKey(),
   value: jsonb("value").notNull(),
 });
+
+/** Phase-1 upload staging: media stored under `key`, promoted to an item via items.post. */
+export const uploads = pgTable("uploads", {
+  key: text("key").primaryKey(),
+  userId: int("user_id")
+    .notNull()
+    .references(() => users.id),
+  image: text("image").notNull(),
+  thumb: text("thumb").notNull(),
+  fullsize: text("fullsize").notNull().default(""),
+  width: int("width").notNull(),
+  height: int("height").notNull(),
+  originalWidth: int("original_width").notNull(),
+  originalHeight: int("original_height").notNull(),
+  audio: boolean("audio").notNull().default(false),
+  dhash: text("dhash").notNull(),
+  created: int("created").notNull(),
+});
