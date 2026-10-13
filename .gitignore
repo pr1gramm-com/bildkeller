@@ -7,3 +7,5 @@ data/
 dist/
 *.tsbuildinfo
 .superpowers/
+app/AGENTS.md
+next-env.d.ts

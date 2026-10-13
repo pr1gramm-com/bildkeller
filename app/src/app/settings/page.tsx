@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api, getMe } from "@/lib/client/api";
+import { api, getMe, type Me } from "@/lib/client/api";
 
 const TOGGLES: Array<[string, string]> = [
   ["enableVoteToggle", "Votes zurücknehmen erlauben"], ["favUpvote", "Upvote favorisiert automatisch"],
@@ -14,14 +14,18 @@ export default function Settings() {
   const [invite, setInvite] = useState("");
   const [pw, setPw] = useState({ old: "", next: "" });
   const [pending, setPending] = useState(false);
-  const me = getMe();
+  const [me, setMe] = useState<Me>(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (!me) return;
+    setMe(getMe());
+    setReady(true);
+    if (!getMe()) return;
     api.get("user/sync", { offset: 0, limit: 1 }).then((r) => setS(r.settings)).catch(() => undefined);
     api.get("user/deletionStatus").then((r) => setPending(r.pending)).catch(() => undefined);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (!ready) return null;
   if (!me) return <p className="err">Bitte einloggen.</p>;
   const run = (p: Promise<unknown>, ok: string) => p.then(() => setMsg(ok)).catch((e) => setMsg(e.message));
 
