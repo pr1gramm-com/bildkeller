@@ -36,6 +36,7 @@ export async function handle(req: NextRequest, path: string[]): Promise<Response
     query: url.searchParams,
     form: req.method === "POST" ? await parseForm(req) : {},
     req,
+    outCookies: [],
   };
   let payload: ApiPayload;
   try {
@@ -43,5 +44,12 @@ export async function handle(req: NextRequest, path: string[]): Promise<Response
   } catch (e) {
     payload = fail(e instanceof Error ? e.message : "error");
   }
-  return json(payload);
+  const res = json(payload);
+  for (const c of ctx.outCookies) {
+    res.headers.append(
+      "set-cookie",
+      `${c.name}=${c.value}; Path=/; Max-Age=${c.maxAge ?? 315360000}; SameSite=Lax`,
+    );
+  }
+  return res;
 }

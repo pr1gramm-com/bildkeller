@@ -12,11 +12,19 @@ export type SessionUser = {
   flags: number;
 };
 
+export type SetCookie = {
+  name: string;
+  value: string;
+  maxAge?: number;
+};
+
 export type ApiCtx = {
   user: SessionUser | null;
   query: URLSearchParams;
   form: Record<string, string>;
   req: NextRequest;
+  /** Handlers push cookies here; the dispatcher applies them to the response. */
+  outCookies: SetCookie[];
 };
 
 export type ApiHandler = (ctx: ApiCtx) => Promise<ApiPayload>;

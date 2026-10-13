@@ -1,7 +1,9 @@
 import { and, eq, isNull, or, gt } from "drizzle-orm";
+import { hashSync, verify } from "@node-rs/argon2";
+import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
 import { db, schema } from "@bildkeller/db";
-import type { SessionUser } from "./types";
+import type { ApiCtx, SessionUser } from "./types";
 
 const ME_COOKIE = "me";
 
@@ -64,3 +66,55 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
 }
 
 export { ME_COOKIE };
+
+const TEN_YEARS = 315360000;
+
+export function hashPassword(password: string): string {
+  return hashSync(password);
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return verify(hash, password);
+}
+
+export function newToken(): string {
+  return randomBytes(16).toString("hex");
+}
+
+export async function createSession(userId: number): Promise<string> {
+  const token = newToken();
+  await db.insert(schema.sessions).values({
+    token,
+    userId,
+    created: Math.floor(Date.now() / 1000),
+  });
+  return token;
+}
+
+export function meMap(
+  user: { id: string; name: string; mark: number; verified: boolean; admin: boolean },
+  extra: Record<string, string> = {},
+): MeMap {
+  return {
+    id: user.id,
+    n: user.name,
+    m: String(user.mark),
+    v: user.verified ? "1" : "0",
+    a: user.admin || user.mod ? "1" : "0",
+    ...extra,
+  };
+}
+
+export function setMeCookie(
+  ctx: Pick<ApiCtx, "outCookies">,
+  user: { id: string; name: string; mark: number; verified: boolean; admin: boolean },
+): void {
+  ctx.outCookies.push({ name: ME_COOKIE, value: encodeMeCookie(meMap(user)), maxAge: TEN_YEARS });
+}
+
+/** CSRF: every logged-in POST must carry _nonce = first 16 chars of the session token. */
+export function assertNonce(ctx: Pick<ApiCtx, "form">, user: SessionUser): void {
+  if (ctx.form._nonce !== user.id.slice(0, 16)) {
+    throw new Error("csrf");
+  }
+}
