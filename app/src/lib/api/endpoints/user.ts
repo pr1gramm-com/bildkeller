@@ -8,6 +8,7 @@ import { getSettings, updateSettings } from "@/lib/settings";
 import {
   assertNonce,
   createSession,
+  hasActiveBan,
   setMeCookie,
   verifyPassword,
 } from "@/lib/auth";
@@ -47,6 +48,7 @@ register("user.login", async (ctx) => {
     return fail("invalid credentials");
   }
 
+  if (await hasActiveBan(user.id)) return fail("banned");
   const token = await createSession(user.id);
   setMeCookie(ctx, {
     id: token,

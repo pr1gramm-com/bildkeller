@@ -23,7 +23,7 @@ export function encodeMeCookie(map: MeMap): string {
   return Buffer.from(JSON.stringify(map), "utf8").toString("base64url");
 }
 
-async function hasActiveBan(userId: number): Promise<boolean> {
+export async function hasActiveBan(userId: number): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
   const rows = await db
     .select({ id: schema.bans.id })

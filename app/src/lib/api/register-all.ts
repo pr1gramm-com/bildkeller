@@ -6,3 +6,5 @@ import "@/lib/api/endpoints/comments";
 import "@/lib/api/endpoints/profile";
 import "@/lib/api/endpoints/inbox";
 import "@/lib/api/endpoints/collections";
+import "@/lib/api/endpoints/account";
+import "@/lib/api/endpoints/admin";
