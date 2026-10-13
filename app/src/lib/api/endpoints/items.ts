@@ -62,7 +62,7 @@ export function toItem(row: JoinedItemRow): ApiItem {
   };
 }
 
-export async function blockedUserIds(user: SessionUser): Promise<number[]> {
+export async function blockedUserIds(user: SessionUser | null): Promise<number[]> {
   if (!user) return [];
   const rows = await db
     .select({ id: schema.blocks.blockedUserId })

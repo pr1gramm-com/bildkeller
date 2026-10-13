@@ -74,11 +74,14 @@ describe("items.get", () => {
   });
 
   it("promoted=1 returns only promoted items, sorted by promoted desc", async () => {
-    const body = await json(await handle(req("/api/items/get?flags=1&promoted=1"), ["items", "get"]));
+    const body = await json(
+      await handle(req("/api/items/get?flags=1&promoted=1&user=feedowner"), ["items", "get"]),
+    );
     const items = body.items as Array<Record<string, unknown>>;
     expect(items.length).toBe(3);
     const promoted = items.map((i) => i.promoted as number);
     expect([...promoted].sort((a, b) => b - a)).toEqual(promoted);
+    expect(items.every((i) => i.user === "feedowner")).toBe(true);
   });
 
   it("older=<id> paginates downward", async () => {
