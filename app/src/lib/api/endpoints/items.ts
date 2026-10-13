@@ -1,9 +1,13 @@
 import { and, asc, desc, eq, gt, lt, sql, notInArray } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
-import { ok } from "@/lib/api/envelope";
+import { ok, fail } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 import { effectiveFlags } from "@/lib/flags";
+import { wilson } from "@/lib/wilson";
+import { maybePromote } from "@/lib/promote";
+import { assertNonce } from "@/lib/auth";
+import { uploadQuota } from "@/lib/ratelimit";
 
 export type ApiItem = {
   id: number;
@@ -118,4 +122,156 @@ export async function requireUser(ctx: ApiCtx): Promise<SessionUser> {
   return ctx.user;
 }
 
+const day = () => {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+};
+
+export async function voteTarget(
+  table: "items" | "comments",
+  id: number,
+  up: boolean,
+  userId: number,
+): Promise<void> {
+  const idCol = table === "items" ? schema.votes.itemId : schema.votes.commentId;
+  const existing = await db
+    .select()
+    .from(schema.votes)
+    .where(and(eq(schema.votes.userId, userId), eq(idCol, id)))
+    .limit(1);
+
+  const upCol = table === "items" ? schema.items.up : schema.comments.up;
+  const downCol = table === "items" ? schema.items.down : schema.comments.down;
+
+  if (existing.length === 0) {
+    await db.insert(schema.votes).values(
+      table === "items"
+        ? { userId, itemId: id, up, created: Math.floor(Date.now() / 1000) }
+        : { userId, commentId: id, up, created: Math.floor(Date.now() / 1000) },
+    );
+    await db
+      .update(table === "items" ? schema.items : schema.comments)
+      .set(up ? { up: sql`${upCol} + 1` } : { down: sql`${downCol} + 1` })
+      .where(eq(table === "items" ? schema.items.id : schema.comments.id, id));
+  } else if (existing[0].up === up) {
+    await db.delete(schema.votes).where(eq(schema.votes.id, existing[0].id));
+    await db
+      .update(table === "items" ? schema.items : schema.comments)
+      .set(up ? { up: sql`greatest(${upCol} - 1, 0)` } : { down: sql`greatest(${downCol} - 1, 0)` })
+      .where(eq(table === "items" ? schema.items.id : schema.comments.id, id));
+  } else {
+    await db.update(schema.votes).set({ up }).where(eq(schema.votes.id, existing[0].id));
+    await db
+      .update(table === "items" ? schema.items : schema.comments)
+      .set(
+        up
+          ? { up: sql`${upCol} + 1`, down: sql`greatest(${downCol} - 1, 0)` }
+          : { down: sql`${downCol} + 1`, up: sql`greatest(${upCol} - 1, 0)` },
+      )
+      .where(eq(table === "items" ? schema.items.id : schema.comments.id, id));
+  }
+}
+
+export async function itemsInfo(ctx: ApiCtx) {
+  const id = Number(ctx.query.get("itemId") ?? 0);
+  const rows = await db
+    .select({ item: schema.items, userName: schema.users.name, userMark: schema.users.mark })
+    .from(schema.items)
+    .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
+    .where(and(eq(schema.items.id, id), eq(schema.items.deleted, false)))
+    .limit(1);
+  const row = rows[0];
+  if (!row || (row.item.flags & effectiveFlags(ctx.user, 31)) === 0) {
+    return fail("not found");
+  }
+
+  // views: one row per day, incremented per info request
+  await db
+    .insert(schema.itemViews)
+    .values({ itemId: id, day: day(), count: 1 })
+    .onConflictDoUpdate({
+      target: [schema.itemViews.itemId, schema.itemViews.day],
+      set: { count: sql`${schema.itemViews.count} + 1` },
+    });
+  const viewsRows = await db
+    .select({ total: sql<number>`coalesce(sum(${schema.itemViews.count}), 0)::int` })
+    .from(schema.itemViews)
+    .where(eq(schema.itemViews.itemId, id));
+
+  const tagRows = await db
+    .select({
+      id: schema.itemTags.tagId,
+      up: schema.itemTags.up,
+      down: schema.itemTags.down,
+      tag: schema.tags.tag,
+    })
+    .from(schema.itemTags)
+    .innerJoin(schema.tags, eq(schema.tags.id, schema.itemTags.tagId))
+    .where(eq(schema.itemTags.itemId, id))
+    .orderBy(desc(sql`${schema.itemTags.up} - ${schema.itemTags.down}`));
+
+  const commentRows = await db
+    .select({ comment: schema.comments, userName: schema.users.name, userMark: schema.users.mark })
+    .from(schema.comments)
+    .innerJoin(schema.users, eq(schema.users.id, schema.comments.userId))
+    .where(and(eq(schema.comments.itemId, id), eq(schema.comments.deleted, false)))
+    .orderBy(asc(schema.comments.id));
+
+  return ok({
+    tags: tagRows.map((t) => ({ id: t.id, tag: t.tag, confidence: wilson(t.up, t.down) })),
+    comments: commentRows.map((c) => ({
+      id: c.comment.id,
+      parent: c.comment.parentId,
+      content: c.comment.content,
+      created: c.comment.created,
+      editedAt: c.comment.editedAt,
+      editCount: c.comment.editCount,
+      up: c.comment.up,
+      down: c.comment.down,
+      confidence: wilson(c.comment.up, c.comment.down),
+      name: c.userName,
+      mark: c.userMark,
+      blocked: false,
+    })),
+    views: Number(viewsRows[0]?.total ?? 0),
+  });
+}
+
 register("items.get", itemsGet);
+register("items.info", itemsInfo);
+
+register("items.vote", async (ctx) => {
+  const user = await requireUser(ctx);
+  assertNonce(ctx, user);
+  const id = Number(ctx.form.id ?? 0);
+  const up = ctx.form.up === "1" || ctx.form.up === "true";
+  await voteTarget("items", id, up, user.userId);
+  await maybePromote(id);
+  return ok({});
+});
+
+register("comments.vote", async (ctx) => {
+  const user = await requireUser(ctx);
+  assertNonce(ctx, user);
+  const id = Number(ctx.form.id ?? 0);
+  const up = ctx.form.up === "1" || ctx.form.up === "true";
+  await voteTarget("comments", id, up, user.userId);
+  return ok({});
+});
+
+register("items.ratelimited", async (ctx) => {
+  const user = await requireUser(ctx);
+  return ok({ left: await uploadQuota(user.userId) });
+});
+
+register("items.delete", async (ctx) => {
+  const user = await requireUser(ctx);
+  assertNonce(ctx, user);
+  const id = Number(ctx.form.id ?? 0);
+  const rows = await db.select().from(schema.items).where(eq(schema.items.id, id)).limit(1);
+  const item = rows[0];
+  if (!item) return fail("not found");
+  if (item.userId !== user.userId && !user.mod && !user.admin) return fail("forbidden");
+  await db.update(schema.items).set({ deleted: true }).where(eq(schema.items.id, id));
+  return ok({});
+});

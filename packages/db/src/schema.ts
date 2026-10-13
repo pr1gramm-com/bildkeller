@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   bigint,
+  primaryKey,
   bigserial,
   boolean,
   integer,
@@ -122,7 +123,7 @@ export const itemTags = pgTable(
     up: int("up").notNull().default(0),
     down: int("down").notNull().default(0),
   },
-  (t) => [t.itemId, t.tagId],
+  (t) => [primaryKey({ columns: [t.itemId, t.tagId] })],
 );
 
 export const itemTagVotes = pgTable(
@@ -137,7 +138,7 @@ export const itemTagVotes = pgTable(
       .references(() => tags.id),
     up: boolean("up").notNull(),
   },
-  (t) => [t.userId, t.itemId, t.tagId],
+  (t) => [primaryKey({ columns: [t.userId, t.itemId, t.tagId] })],
 );
 
 export const commentEdits = pgTable("comment_edits", {
@@ -155,7 +156,7 @@ export const commentFavorites = pgTable(
       .references(() => users.id),
     commentId: big("comment_id", { mode: "number" }).notNull(),
   },
-  (t) => [t.userId, t.commentId],
+  (t) => [primaryKey({ columns: [t.userId, t.commentId] })],
 );
 
 export const itemViews = pgTable(
@@ -165,7 +166,7 @@ export const itemViews = pgTable(
     day: int("day").notNull(),
     count: int("count").notNull().default(0),
   },
-  (t) => [t.itemId, t.day],
+  (t) => [primaryKey({ columns: [t.itemId, t.day] })],
 );
 
 export const collections = pgTable("collections", {
@@ -189,7 +190,7 @@ export const collectionItems = pgTable(
     itemId: big("item_id", { mode: "number" }).notNull(),
     added: int("added").notNull(),
   },
-  (t) => [t.collectionId, t.itemId],
+  (t) => [primaryKey({ columns: [t.collectionId, t.itemId] })],
 );
 
 export const collectionCurators = pgTable(
@@ -202,7 +203,7 @@ export const collectionCurators = pgTable(
       .notNull()
       .references(() => users.id),
   },
-  (t) => [t.collectionId, t.userId],
+  (t) => [primaryKey({ columns: [t.collectionId, t.userId] })],
 );
 
 export const follows = pgTable(
@@ -215,7 +216,7 @@ export const follows = pgTable(
       .notNull()
       .references(() => users.id),
   },
-  (t) => [t.followerId, t.followeeId],
+  (t) => [primaryKey({ columns: [t.followerId, t.followeeId] })],
 );
 
 export const subscriptions = pgTable(
@@ -228,7 +229,7 @@ export const subscriptions = pgTable(
       .notNull()
       .references(() => collections.id),
   },
-  (t) => [t.userId, t.collectionId],
+  (t) => [primaryKey({ columns: [t.userId, t.collectionId] })],
 );
 
 export const messages = pgTable("messages", {
@@ -264,7 +265,7 @@ export const bookmarks = pgTable(
     itemId: big("item_id", { mode: "number" }).notNull(),
     created: int("created").notNull(),
   },
-  (t) => [t.userId, t.itemId],
+  (t) => [primaryKey({ columns: [t.userId, t.itemId] })],
 );
 
 export const blocks = pgTable(
@@ -277,7 +278,7 @@ export const blocks = pgTable(
       .notNull()
       .references(() => users.id),
   },
-  (t) => [t.userId, t.blockedUserId],
+  (t) => [primaryKey({ columns: [t.userId, t.blockedUserId] })],
 );
 
 export const blockedTags = pgTable(
@@ -290,7 +291,7 @@ export const blockedTags = pgTable(
       .notNull()
       .references(() => tags.id),
   },
-  (t) => [t.userId, t.tagId],
+  (t) => [primaryKey({ columns: [t.userId, t.tagId] })],
 );
 
 export const invites = pgTable("invites", {
