@@ -57,12 +57,12 @@ export default function Header() {
         {me ? (
           <>
             <Link href="/upload" className="iconbtn" title="Upload"><Icon name="upload" /></Link>
-            <Link href="/inbox" className="iconbtn" title="Inbox">
+            <Link href="/inbox" id="inbox-link" className="iconbtn" title="Nachrichten">
               <Icon name="mail" />
-              {unread > 0 && <span className="badge">{unread}</span>}
+              {unread > 0 && <span className="badge" id="inbox-count">{unread}</span>}
             </Link>
-            <Link href={`/user/${me.n}`} className="uname">{me.n}</Link>
-            <Link href="/settings" className="iconbtn" title="Einstellungen"><Icon name="settings" /></Link>
+            <Link href={`/user/${me.n}`} id="user-profile-name" className="uname">{me.n}</Link>
+            <Link href="/settings" id="settings-link" className="iconbtn" title="Einstellungen"><Icon name="settings" /></Link>
             {me.a === "1" && <Link href="/admin" className="uname">Mod</Link>}
             <button onClick={logout}>Logout</button>
           </>
