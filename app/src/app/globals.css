@@ -170,3 +170,5 @@ td, th { border-bottom: 1px solid var(--line); padding: 6px; text-align: left; }
   #head nav { gap: 8px; }
   .btn-primary { padding: 7px 8px; }
 }
+
+input:focus, textarea:focus, select:focus { background-color: #212425; color: #f5f7f6; outline: none; }
