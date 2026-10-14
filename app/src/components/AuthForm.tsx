@@ -40,6 +40,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       )}
       {error && <span className="err">{error}</span>}
       <button className="primary">{mode === "login" ? "Einloggen" : "Konto erstellen"}</button>
+      <span className="dim">Eigenständiges Projekt, nicht mit pr0gramm.com verbunden.</span>
     </form>
   );
 }

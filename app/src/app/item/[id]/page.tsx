@@ -1,5 +1,6 @@
-import ItemView from "@/components/ItemView";
+import Feed from "@/components/Feed";
+
 export default async function ItemPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  return <ItemView id={Number(id)} />;
+  return <Feed startAt={Number(id)} />;
 }

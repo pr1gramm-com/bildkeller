@@ -8,7 +8,7 @@
 
 Ein selbst-hostbares, Open-Source-Imageboard im Stil von pr0gramm: ein einzelner Bild-/Video-Stream mit Voting, Tags, threaded Comments, Benis-Score und komplettem Social-Layer (Profile, Follow, Inbox, Collections). Das Verhalten wurde durch dokumentiertes Reverse-Engineering erfasst (`~/pr0gramm-re/findings.md` — Feature-Mechanik, API-Endpunkte, Response-Schemas).
 
-**Kernversprechen:** API-kompatibler Drop-in-Ersatz. Der Server implementiert die dokumentierten pr0gramm-Endpunkte und Response-Shapes, sodass bestehende pr0gramm-Clients/-Apps über Base-URL-Umschaltung dagegen arbeiten können. Dazu ein eigener Web-Client mit eigenem Design/Branding (Clean-Room — kein Code, keine Templates, keine Assets, kein Name von pr0gramm).
+**Kernversprechen:** API-kompatibler Drop-in-Ersatz. Der Server implementiert die dokumentierten pr0gramm-Endpunkte und Response-Shapes, sodass bestehende pr0gramm-Clients/-Apps über Base-URL-Umschaltung dagegen arbeiten können. Dazu ein eigener Web-Client (Clean-Room — kein Code, keine Templates, keine Assets von pr0gramm), dessen Look bewusst an pr0gramm angelehnt ist (Layout, Farben, Interaktionen; Update 2026-10-14), mit eigenem Namen "pr1gramm", eigenem Logo und eigenen Icons.
 
 **Warum:** Es gibt keine wartbare, moderne, self-hostbare Imageboard-Software mit dieser Feature-Dichte (Feed-Mechanik + Social + Moderation). Klassische Boards (vichan & Co.) sind thread-/board-basiert; hier ist es ein Single-Stream-Modell.
 
@@ -29,7 +29,7 @@ Ein selbst-hostbares, Open-Source-Imageboard im Stil von pr0gramm: ein einzelner
 
 ## 4. Anti-Goals (harte Grenzen)
 
-- **Kein pr0gramm-Branding:** kein Name, keine Logos, keine pictogramm-Icons, kein 1:1-Design-Klon.
+- **Kein kopiertes pr0gramm-Branding:** kein pr0gramm-Name, kein Original-Logo, kein pictogramm-Icon-Font, kein kopiertes CSS/JS. Der Look (Layout, Farben, Interaktionen) darf pixelnah nachgebaut werden (Entscheidung 2026-10-14), mit eigenem Logo und eigenen Icons.
 - **Kein kopierter Code/Templates:** Alles neu implementiert; Quelle der Wahrheit ist ausschließlich die Verhaltensdokumentation.
 - **Kein Data-Mining:** Kein Tracking, keine Ads-Integration.
 

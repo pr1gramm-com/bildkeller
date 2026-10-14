@@ -1,0 +1,50 @@
+# Dokploy variant of docker-compose.yml: Traefik reaches the app over the shared dokploy-network, no host port.
+# Service names are unique on purpose: `app`/`db` would also resolve to other stacks' services on dokploy-network.
+services:
+  pr1-db:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bildkeller
+      POSTGRES_USER: bildkeller
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bildkeller -d bildkeller"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  pr1-app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      pr1-db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://bildkeller:${POSTGRES_PASSWORD}@pr1-db:5432/bildkeller
+      MEDIA_DIR: /data/media
+      # Set TRUST_CF_IP=1 only once the origin accepts traffic from Cloudflare alone (see src/lib/limiter.ts).
+      TRUST_CF_IP: ${TRUST_CF_IP:-0}
+    volumes:
+      - media-data:/data/media
+    expose:
+      - "3000"
+    networks:
+      - default
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  db-data:
+  media-data:
+
+networks:
+  dokploy-network:
+    external: true

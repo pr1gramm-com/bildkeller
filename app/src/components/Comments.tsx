@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { api, ago, getMe } from "@/lib/client/api";
+import { markColor } from "@/lib/marks";
 import VoteBox from "./VoteBox";
 
 export type ApiComment = {
@@ -27,43 +28,53 @@ function Reply({ itemId, parent, onDone }: { itemId: number; parent: number; onD
   const [text, setText] = useState("");
   return (
     <form
-      className="row"
+      className="row reply"
       onSubmit={(e) => {
         e.preventDefault();
         if (!text.trim()) return;
         api.post("comments/post", { itemId, parent, content: text }).then(() => { setText(""); onDone(); }).catch(() => undefined);
       }}
     >
-      <textarea id={parent === 0 ? "comment-input" : undefined} placeholder="Kommentar schreiben [c]" value={text} onChange={(e) => setText(e.target.value)} style={{ flex: 1 }} rows={2} />
+      <textarea id={parent === 0 ? "comment-input" : undefined} placeholder="Kommentar schreiben [c]" value={text} onChange={(e) => setText(e.target.value)} rows={3} />
       <button className="primary">Abschicken</button>
     </form>
   );
 }
 
+function count(n: Node): number {
+  return n.children.reduce((sum, c) => sum + 1 + count(c), 0);
+}
+
 function CommentNode({ n, itemId, onChange }: { n: Node; itemId: number; onChange: () => void }) {
   const [replying, setReplying] = useState(false);
   const [open, setOpen] = useState(!n.blocked);
+  const [folded, setFolded] = useState(false);
   const me = getMe();
+  const [score, setScore] = useState(n.up - n.down);
+  const hidden = count(n);
   return (
     <div className="comment">
-      <div className="meta">
-        <Link href={`/user/${n.name}`}>{n.name}</Link>
-        <span>{ago(n.created)}{n.editedAt ? " (bearbeitet)" : ""}</span>
-        {n.blocked && <button onClick={() => setOpen(!open)}>{open ? "ausblenden" : "anzeigen"}</button>}
+      <VoteBox kind="comment" id={n.id} up={n.up} down={n.down} onScore={setScore} />
+      <div className="body">
+        {open && !folded && <div className="text">{n.content}</div>}
+        <div className="meta">
+          <Link href={`/user/${n.name}`} className="uname">{n.name}</Link>
+          <span className="dot" style={{ background: markColor(n.mark) }} />
+          <span className="pts">{score} Benis</span>
+          <span className="dim">{ago(n.created)}{n.editedAt ? " (bearbeitet)" : ""}</span>
+          {me && <button className="link hot" onClick={() => setReplying(!replying)}>antworten</button>}
+          <button className="link hot" onClick={() => setFolded(!folded)}>[{folded ? `+${hidden}` : "−"}]</button>
+          {n.blocked && <button className="link hot" onClick={() => setOpen(!open)}>{open ? "ausblenden" : "anzeigen"}</button>}
+        </div>
+        {open && !folded && (
+          <>
+            {replying && <Reply itemId={itemId} parent={n.id} onDone={() => { setReplying(false); onChange(); }} />}
+            <div className="children">
+              {n.children.map((c) => <CommentNode key={c.id} n={c} itemId={itemId} onChange={onChange} />)}
+            </div>
+          </>
+        )}
       </div>
-      {open && (
-        <>
-          <div style={{ whiteSpace: "pre-wrap" }}>{n.content}</div>
-          <div className="row">
-            <VoteBox kind="comment" id={n.id} up={n.up} down={n.down} />
-            {me && <button onClick={() => setReplying(!replying)}>antworten</button>}
-          </div>
-          {replying && <Reply itemId={itemId} parent={n.id} onDone={() => { setReplying(false); onChange(); }} />}
-          <div className="children">
-            {n.children.map((c) => <CommentNode key={c.id} n={c} itemId={itemId} onChange={onChange} />)}
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -71,8 +82,8 @@ function CommentNode({ n, itemId, onChange }: { n: Node; itemId: number; onChang
 export default function Comments({ itemId, comments, onChange }: { itemId: number; comments: ApiComment[]; onChange: () => void }) {
   const roots = useMemo(() => tree(comments), [comments]);
   return (
-    <section>
-      <h3>{comments.length} Kommentare</h3>
+    <section className="comments">
+      <h3 className="count">{comments.length} Kommentare</h3>
       {getMe() && <Reply itemId={itemId} parent={0} onDone={onChange} />}
       {roots.map((n) => <CommentNode key={n.id} n={n} itemId={itemId} onChange={onChange} />)}
     </section>

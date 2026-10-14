@@ -2,9 +2,11 @@ import "./globals.css";
 import Header from "@/components/Header";
 
 export const metadata = {
-  title: "Bildkeller",
-  description: "Self-hosted imageboard",
+  title: "pr1gramm",
+  description: "Die besten Bilder und Videos aus dem Netz",
 };
+
+export const viewport = { themeColor: "#ee4d2e" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

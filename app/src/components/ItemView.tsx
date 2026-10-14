@@ -1,16 +1,27 @@
 "use client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { ApiItem } from "@/lib/api/endpoints/items";
 import { api, ago, getMe, isVideo, mediaUrl } from "@/lib/client/api";
+import { markColor } from "@/lib/marks";
 import Comments, { type ApiComment } from "./Comments";
+import Icon from "./Icon";
 import TagBar, { type ApiTag } from "./TagBar";
 import VoteBox from "./VoteBox";
 
-export default function ItemView({ id }: { id: number }) {
-  const router = useRouter();
-  const [item, setItem] = useState<ApiItem | null>(null);
+type Props = { id: number; item?: ApiItem; onPrev: () => void; onNext: () => void; onClose: () => void };
+
+const host = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+};
+
+/** One opened post: media, vote/meta/tags row and comments. Lives inside the feed grid. */
+export default function ItemView({ id, item: given, onPrev, onNext, onClose }: Props) {
+  const [item, setItem] = useState<ApiItem | null>(given ?? null);
   const [tags, setTags] = useState<ApiTag[]>([]);
   const [comments, setComments] = useState<ApiComment[]>([]);
   const [views, setViews] = useState(0);
@@ -25,39 +36,34 @@ export default function ItemView({ id }: { id: number }) {
   }, [id]);
 
   useEffect(() => {
-    setItem(null);
     setError("");
-    api.get("items/get", { id, flags: 31 })
-      .then((res) => {
-        const found = res.items.find((i: ApiItem) => i.id === id);
-        if (!found) throw new Error("Nicht gefunden");
+    const known = given ? Promise.resolve(given) : api.get("items/get", { id, flags: 31 }).then((res) => {
+      const found = res.items.find((i: ApiItem) => i.id === id);
+      if (!found) throw new Error("Nicht gefunden");
+      return found as ApiItem;
+    });
+    known
+      .then((found) => {
         setItem(found);
         return loadInfo();
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Fehler"));
-  }, [id, loadInfo]);
-
-  const go = useCallback(
-    (dir: -1 | 1) => {
-      const ids: number[] = JSON.parse(sessionStorage.getItem("bk.feed") ?? "[]");
-      const next = ids[ids.indexOf(id) + dir];
-      if (next) router.push(`/item/${next}`);
-    },
-    [id, router],
-  );
+  }, [id, given, loadInfo]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const typing = ["INPUT", "TEXTAREA"].includes((e.target as HTMLElement).tagName);
-      if (typing) return;
-      if (e.key === "ArrowLeft") go(-1);
-      if (e.key === "ArrowRight") go(1);
+      if (e.ctrlKey || e.metaKey || e.altKey) return; // browser shortcuts (copy, history back) stay untouched
+      const t = e.target as HTMLElement;
+      if (["INPUT", "TEXTAREA", "SELECT"].includes(t.tagName) || t.isContentEditable || t.closest(".flagpop")) return;
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "ArrowRight") onNext();
+      if (e.key === "Escape") onClose();
       if (e.key === "c") { e.preventDefault(); document.getElementById("comment-input")?.focus(); }
       if (e.key === "k") { e.preventDefault(); document.getElementById("search")?.focus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [go]);
+  }, [onPrev, onNext, onClose]);
 
   async function report() {
     const reason = window.prompt("Grund der Meldung?");
@@ -75,27 +81,32 @@ export default function ItemView({ id }: { id: number }) {
 
   return (
     <div className="item">
-      <div>
-        <div className="stage">
-          {isVideo(item.image) ? (
-            <video src={mediaUrl(item.image)} controls loop autoPlay muted={!item.audio} playsInline />
-          ) : (
-            <img src={mediaUrl(item.image)} alt="" />
-          )}
+      <div className="stage">
+        {isVideo(item.image) ? (
+          <video src={mediaUrl(item.image)} controls loop autoPlay muted={!item.audio} playsInline />
+        ) : (
+          <img src={mediaUrl(item.image)} alt="" />
+        )}
+        <button className="nav prev" onClick={onPrev} aria-label="Vorheriges"><Icon name="left" size={30} /></button>
+        <button className="nav next" onClick={onNext} aria-label="Nächstes"><Icon name="right" size={30} /></button>
+      </div>
+      <div className="item-info">
+        <VoteBox kind="item" id={item.id} up={item.up} down={item.down} />
+        {me && <button className="iconbtn fav" onClick={favorite} title="Zu Favoriten"><Icon name="star" size={20} /></button>}
+        <div className="item-details">
+          <div className="meta">
+            <span>vor {ago(item.created).replace(/^vor /, "")}</span>
+            <span>
+              von <Link href={`/user/${item.user}`} className="uname">{item.user}</Link>{" "}
+              <span className="dot" style={{ background: markColor(item.mark) }} />
+            </span>
+            <span>{views} Aufrufe</span>
+            {item.source && <a href={item.source} rel="noreferrer noopener" target="_blank" className="src">{host(item.source)}</a>}
+            <a href={mediaUrl(item.image)} download className="hot">herunterladen</a>
+            {me && <button className="link hot" onClick={report}>[melden]</button>}
+          </div>
+          <TagBar itemId={item.id} tags={tags} onChange={loadInfo} />
         </div>
-        <div className="bar">
-          <button onClick={() => go(-1)}>‹</button>
-          <button onClick={() => go(1)}>›</button>
-          <VoteBox kind="item" id={item.id} up={item.up} down={item.down} />
-          {me && <button onClick={favorite} title="Zu Favoriten">★</button>}
-          <span className="dim">
-            {ago(item.created)} von <Link href={`/user/${item.user}`}>{item.user}</Link> · {views} Aufrufe
-          </span>
-          {item.source && <a href={item.source} rel="noreferrer noopener" target="_blank">Quelle</a>}
-          <a href={mediaUrl(item.image)} download>herunterladen</a>
-          {me && <button onClick={report}>melden</button>}
-        </div>
-        <TagBar itemId={item.id} tags={tags} onChange={loadInfo} />
       </div>
       <Comments itemId={item.id} comments={comments} onChange={loadInfo} />
     </div>
