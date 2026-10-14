@@ -5,7 +5,7 @@ threaded comments, profiles, follows, messages and collections.
 
 The HTTP API follows the structure of an existing, popular German image board (endpoint names, parameters and
 response shapes), so API clients written for that style of board can be pointed at a Bildkeller instance.
-The web client, code, design and name are original.
+The web client's code, logo and icons are original; its look and feel is **inspired by [pr0gramm.com](https://pr0gramm.com)**.
 
 > **Not affiliated with, endorsed by, or derived from the source code of any other site.** The API contract was
 > documented from observed behaviour for interoperability; no code, templates, assets or branding were copied.
