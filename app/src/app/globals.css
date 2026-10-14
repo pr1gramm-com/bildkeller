@@ -18,16 +18,21 @@ html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.3 sans-serif; }
 a { color: inherit; text-decoration: none; }
 a:hover { color: var(--main); }
-h2, h3 { font-weight: 600; }
-h3 { font-size: 14px; margin: 12px 0 8px; }
+h2 { font-weight: normal; text-transform: uppercase; font-size: 21px; margin: 12px 0 12px 0; }
+h3 { font-weight: normal; text-transform: uppercase; font-size: 14px; color: #f5f7f6; margin: 24px 0 8px 0; }
 :focus-visible { outline: 2px solid var(--main); outline-offset: 1px; }
 
-button, input, select, textarea { font: inherit; color: inherit; background: var(--field); border: 0; border-radius: 0; padding: 7px 10px; }
+input, select, textarea { font: inherit; color: #bbb; background: #1b1e1f; border: 0; border-radius: 0; padding: 5px; }
+button { font: inherit; font-weight: 600; color: #f5f7f6; background: var(--main); border: none; border-radius: 0; padding: 8px 8px 6px 8px; min-height: 44px; min-width: 44px; text-align: center; cursor: pointer; }
+button:hover:not(:disabled) { background: #f5f7f6; color: #555; }
+button:disabled, button.cancel { background: #212425; color: #888; cursor: not-allowed; }
+button.link, button.iconbtn { background: none; min-height: 0; min-width: 0; padding: 0; color: var(--link); font-weight: 400; }
+button.link:hover, button.iconbtn:hover { background: none; color: var(--main); }
 input, textarea, select { width: 100%; }
 input[type="checkbox"], input[type="radio"] { width: auto; accent-color: var(--main); }
 textarea { resize: vertical; }
 button { cursor: pointer; width: auto; }
-button:hover:not(:disabled) { background: var(--line); }
+/* button hover handled by button base rule */
 button:disabled { opacity: .5; cursor: default; }
 button.link { background: none; padding: 0; color: var(--link); }
 button.link:hover { color: var(--main); background: none; }
