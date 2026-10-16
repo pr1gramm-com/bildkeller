@@ -130,7 +130,6 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
   const insertAfter = idx < 0 ? -1 : Math.min(items.length - 1, (Math.floor(idx / cols) + 1) * cols - 1);
   const viewer = openId !== null && (
     <div className="item-container" ref={opened} key="viewer">
-      <button className="item-close iconbtn" onClick={close} aria-label="Schließen">×</button>
       <ItemView key={openId} id={openId} item={idx >= 0 ? items[idx] : undefined} onPrev={() => go(-1)} onNext={() => go(1)} onClose={close} />
     </div>
   );

@@ -57,13 +57,13 @@ export default function Upload() {
   }
 
   return (
-    <form className="stack panel" onSubmit={submit}>
-      <h2>Upload {left !== null && <span className="dim">· noch {left} frei</span>}</h2>
+    <form className="stack pane" onSubmit={submit}>
+      <h1 className="pane-head">Datei hochladen</h1>
       {!preview ? (
         <div className="dropzone" onClick={() => fileInput.current?.click()}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void pick(f); }}>
-          Datei hierher ziehen oder klicken (PNG, JPEG, GIF, WebM, MP4, MOV)
+          Datei auswählen oder per Drag &amp; Drop reinziehen
           <input ref={fileInput} type="file" hidden accept="image/png,image/jpeg,image/gif,video/webm,video/mp4,video/quicktime"
             onChange={(e) => e.target.files?.[0] && void pick(e.target.files[0])} />
         </div>
@@ -73,15 +73,18 @@ export default function Upload() {
         <img src={preview.url} alt="" style={{ maxWidth: "100%" }} />
       )}
       <fieldset>
-        <legend>Einstufung</legend>
+        <legend className="sr-only">Einstufung</legend>
         {RATINGS.map(([v, d]) => (
-          <label key={v} className="row"><input type="radio" name="sfwstatus" value={v} checked={rating === v} onChange={() => setRating(v)} required /> {v} <span className="dim">{d}</span></label>
+          <label key={v} className="rating"><input type="radio" name="sfwstatus" value={v} checked={rating === v} onChange={() => setRating(v)} required /> <span className="rating-name">{v}</span> <small className="dim">– {d}</small></label>
         ))}
       </fieldset>
-      <input placeholder="Tags, mit Komma getrennt (max. 16)" value={tags} onChange={(e) => setTags(e.target.value)} />
-      <input placeholder="Quelle (optional)" value={source} onChange={(e) => setSource(e.target.value)} />
+      <h3>Tags</h3>
+      <input placeholder="Tags hinzufügen, mit Komma trennen (max. 16)" value={tags} onChange={(e) => setTags(e.target.value)} />
+      <h3>Quelle (optional)</h3>
+      <input placeholder="http://" value={source} onChange={(e) => setSource(e.target.value)} />
       {error && <span className="err">{error}</span>}
-      <button className="primary" disabled={!key || !rating || busy}>{busy ? "…" : "Hochladen"}</button>
+      <button className="primary upload-submit" disabled={!key || !rating || busy}>{busy ? "…" : "Datei hochladen"}</button>
+      {left !== null && <p className="upload-left">Du hast noch <b className="hot">{left}</b> Hochlads verbleibend!</p>}
     </form>
   );
 }

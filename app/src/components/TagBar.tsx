@@ -19,7 +19,7 @@ export default function TagBar({ itemId, tags, onChange }: { itemId: number; tag
     api.post("tags/vote", { itemId, tag, up: up ? 1 : 0 }).then(onChange).catch(() => undefined);
 
   return (
-    <div>
+    <div className="item-tags">
       <div className="tags">
         {shown.map((t) => (
           <span className="tag" key={t.id}>

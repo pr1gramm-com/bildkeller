@@ -25,6 +25,7 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
   const [tags, setTags] = useState<ApiTag[]>([]);
   const [comments, setComments] = useState<ApiComment[]>([]);
   const [views, setViews] = useState(0);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const me = getMe();
 
@@ -76,6 +77,16 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
     if (fav) await api.post("collections/add", { collectionId: fav.id, itemId: id }).catch(() => undefined);
   }
 
+  async function share() {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/item/${id}`);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // clipboard blocked: nothing to copy to
+    }
+  }
+
   if (error) return <p className="err">{error}</p>;
   if (!item) return <p className="dim">Lade…</p>;
 
@@ -87,28 +98,29 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
         ) : (
           <img src={mediaUrl(item.image)} alt="" />
         )}
-        <button className="nav prev" onClick={onPrev} aria-label="Vorheriges"><Icon name="left" size={30} /></button>
-        <button className="nav next" onClick={onNext} aria-label="Nächstes"><Icon name="right" size={30} /></button>
+        <button className="nav prev" onClick={onPrev} aria-label="Vorheriges"><Icon name="left" size={36} /></button>
+        <button className="nav next" onClick={onNext} aria-label="Nächstes"><Icon name="right" size={36} /></button>
       </div>
       <div className="item-info">
         <VoteBox kind="item" id={item.id} up={item.up} down={item.down} />
-        {me && <button className="iconbtn fav" onClick={favorite} title="Zu Favoriten"><Icon name="star" size={20} /></button>}
+        {me && <button className="iconbtn vote-fav" onClick={favorite} title="Favorisieren"><Icon name="heart" size={24} /></button>}
         <div className="item-details">
-          <div className="meta">
-            <span>vor {ago(item.created).replace(/^vor /, "")}</span>
-            <span>
-              von <Link href={`/user/${item.user}`} className="uname">{item.user}</Link>{" "}
-              <span className="dot" style={{ background: markColor(item.mark) }} />
-            </span>
-            <span>{views} Aufrufe</span>
-            {item.source && <a href={item.source} rel="noreferrer noopener" target="_blank" className="src">{host(item.source)}</a>}
+          <span className="time">{ago(item.created)}</span>
+          <span className="time">von</span>
+          <Link href={`/user/${item.user}`} className="user">{item.user}</Link>
+          <span className="mark" style={{ color: markColor(item.mark) }}>●</span>
+          <span className="item-views">{views.toLocaleString("de-DE")} Aufrufe</span>
+          <span className="item-extra">
+            <button className="link hot" onClick={share}>{copied ? "Link kopiert" : "Teilen"}</button>
+            {" | "}
             <a href={mediaUrl(item.image)} download className="hot">herunterladen</a>
-            {me && <button className="link hot" onClick={report}>[melden]</button>}
-          </div>
-          <TagBar itemId={item.id} tags={tags} onChange={loadInfo} />
+          </span>
+          {item.source && <a href={item.source} rel="noreferrer noopener" target="_blank" className="src">{host(item.source)}</a>}
+          {me && <span className="bracket">[<button className="link hot" onClick={report}>melden</button>]</span>}
         </div>
+        <TagBar itemId={item.id} tags={tags} onChange={loadInfo} />
       </div>
-      <Comments itemId={item.id} comments={comments} onChange={loadInfo} />
+      <Comments itemId={item.id} op={item.user} comments={comments} onChange={loadInfo} />
     </div>
   );
 }
