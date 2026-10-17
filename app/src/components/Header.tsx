@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { api, getMe, type Me } from "@/lib/client/api";
+import { getMe, type Me } from "@/lib/client/api";
 import { syncOnce } from "@/lib/client/votes";
 import FlagFilter from "./FlagFilter";
 import Icon from "./Icon";
@@ -33,12 +33,11 @@ export default function Header() {
     return () => clearInterval(t);
   }, [section]);
 
-  async function logout() {
-    await api.post("user/logout").catch(() => undefined);
-    setMe(null);
-    router.push("/");
-    router.refresh();
-  }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const value = params.get("tags") ?? params.get("q");
+    if (value) setQ(value);
+  }, [path]);
 
   return (
     <header id="head">
@@ -48,29 +47,31 @@ export default function Header() {
           <Link key={t.href} href={t.href} className={path === t.href ? "active" : ""}>{t.label}</Link>
         ))}
       </nav>
-      <FlagFilter />
+      {me && <FlagFilter />}
       <form className="search" onSubmit={(e) => { e.preventDefault(); router.push(`/search?tags=${encodeURIComponent(q)}`); }}>
-        <input id="search" placeholder="Suche [k]" value={q} onChange={(e) => setQ(e.target.value)} />
-        <button className="iconbtn" aria-label="Suchen"><Icon name="search" /></button>
+        <input id="search" placeholder="Suchen" value={q} onChange={(e) => setQ(e.target.value)} />
+        <button className="iconbtn" aria-label="Suchen"><Icon name="search" size={18} /></button>
       </form>
+      {me && (
+        <Link href="/upload" className="iconbtn head-upload" title="Upload" aria-label="Upload">
+          <Icon name="upload" size={20} />
+        </Link>
+      )}
       <div className="right">
         {me ? (
           <>
-            <Link href="/upload" className="iconbtn" title="Upload"><Icon name="upload" /></Link>
-            <Link href="/inbox" id="inbox-link" className="iconbtn" title="Nachrichten">
-              <Icon name="mail" />
-              {unread > 0 && <span className="badge" id="inbox-count">{unread}</span>}
-            </Link>
+            {me.a === "1" && <Link href="/admin" className="pill">Mod</Link>}
             <Link href={`/user/${me.n}`} id="user-profile-name" className="uname">{me.n}</Link>
-            <Link href="/settings" id="settings-link" className="iconbtn" title="Einstellungen"><Icon name="settings" /></Link>
-            {me.a === "1" && <Link href="/admin" className="uname">Mod</Link>}
-            <button onClick={logout}>Logout</button>
+            <Link href="/inbox" id="inbox-link" className="iconbtn" title="Nachrichten">
+              <Icon name="mail" size={20} />
+              <span className="count" id="inbox-count">{unread}</span>
+            </Link>
+            <Link href="/settings" id="settings-link" className="iconbtn" title="Einstellungen">
+              <Icon name="settings" size={20} />
+            </Link>
           </>
         ) : (
-          <>
-            <Link href="/login">Login</Link>
-            <Link href="/register" className="btn-primary">Registrieren</Link>
-          </>
+          <Link href="/login" className="login-link"><Icon name="star" size={14} /> anmelden</Link>
         )}
       </div>
     </header>

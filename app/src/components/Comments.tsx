@@ -62,6 +62,10 @@ function CommentNode({ n, itemId, op, onChange }: { n: Node; itemId: number; op:
   const me = getMe();
   const [score, setScore] = useState(n.up - n.down);
   const hidden = count(n);
+  async function report() {
+    const reason = window.prompt("Grund der Meldung?");
+    if (reason) await api.post("contact/report", { commentId: n.id, reason }).catch(() => undefined);
+  }
   return (
     <div className="comment-box">
       <div className="comment">
@@ -79,6 +83,7 @@ function CommentNode({ n, itemId, op, onChange }: { n: Node; itemId: number; op:
             </button>
           )}
           <button className="link hot fold" onClick={() => setFolded(!folded)}>{folded ? "[+]" : "[–]"}</button>
+          {me && <span className="bracket">[<button className="link hot" onClick={report}>melden</button>]</span>}
           {folded && hidden > 0 && <span className="folded-comments-message">({hidden} eingeklappt)</span>}
           {n.blocked && <button className="link hot" onClick={() => setOpen(!open)}>{open ? "ausblenden" : "anzeigen"}</button>}
         </div>
