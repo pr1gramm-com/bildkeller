@@ -30,23 +30,23 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
   return (
     <div className="overlay-box">
       <form className="overlay-content" onSubmit={submit}>
-        <h2>{mode === "login" ? "Login" : "Registrieren"}</h2>
-        <div className="form-row"><label>Name</label><input value={f.name} onChange={set("name")} required autoFocus /></div>
-        <div className="form-row"><label>Passwort</label><input type="password" minLength={8} value={f.password} onChange={set("password")} required /></div>
+        <h2>{mode === "login" ? "Anmelden" : "Neu registrieren"}</h2>
+        <div className="form-row"><label>Benutzername:</label><input placeholder="Name" value={f.name} onChange={set("name")} required autoFocus /></div>
+        <div className="form-row"><label>Passwort:</label><input type="password" placeholder="Passwort" minLength={8} value={f.password} onChange={set("password")} required /></div>
         {mode === "register" && (
           <>
-            <div className="form-row"><label>E-Mail (optional)</label><input type="email" value={f.email} onChange={set("email")} /></div>
-            <div className="form-row"><label>Einladungscode (leer beim ersten Account)</label><input value={f.invite} onChange={set("invite")} /></div>
-            <label className="row"><input type="checkbox" checked={f.age} onChange={set("age")} /> Ich bin mindestens 18 (schaltet NSFW/NSFL frei)</label>
+            <div className="form-row"><label>E-Mail (optional):</label><input type="email" placeholder="E-Mail" value={f.email} onChange={set("email")} /></div>
+            <div className="form-row"><label>Einladungscode (leer beim ersten Account):</label><input placeholder="Einladungscode" value={f.invite} onChange={set("invite")} /></div>
+            <label className="age"><input type="checkbox" checked={f.age} onChange={set("age")} /> <span>Ich bin mindestens 18 (schaltet NSFW/NSFL frei)</span></label>
           </>
         )}
         {error && <p className="err">{error}</p>}
-        <div className="form-row"><button className="primary">{mode === "login" ? "Einloggen" : "Konto erstellen"}</button></div>
+        <div className="form-row"><button className="primary">{mode === "login" ? "Anmelden" : "Konto erstellen"}</button></div>
         <p className="dim">Eigenständiges Projekt, nicht mit pr0gramm.com verbunden.</p>
       </form>
       <div className="overlay-content">
-        <h2>{mode === "login" ? "Registrieren" : "Login"}</h2>
-        <p>{mode === "login" ? "Noch kein Konto? Mit einem Einladungscode bist du in einer Minute dabei." : "Du hast schon ein Konto?"}</p>
+        <h2>{mode === "login" ? "Neu registrieren" : "Anmelden"}</h2>
+        <p>{mode === "login" ? "Wenn du noch kein Konto hast, kannst du dir hier mit einem Einladungscode eins erstellen." : "Du hast schon ein Konto?"}</p>
         <div className="form-row"><Link href={mode === "login" ? "/register" : "/login"} className="btn-primary cta">{mode === "login" ? "Konto erstellen" : "Zum Login"}</Link></div>
       </div>
     </div>

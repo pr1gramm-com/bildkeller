@@ -20,6 +20,7 @@ export default function Inbox() {
   useEffect(() => { if (getMe()) void loadConvs(); else setError("Bitte einloggen."); }, [loadConvs]);
   useEffect(() => { if (tab === "notifications") api.get("inbox/notifications").then((r) => setNotes(r.messages)).catch(() => undefined); }, [tab]);
   useEffect(() => { if (peer) api.get("inbox/messages", { with: peer }).then((r) => { setMsgs(r.messages); void loadConvs(); }).catch(() => undefined); }, [peer, loadConvs]);
+  useEffect(() => { if (!peer && convs.length > 0) setPeer(convs[0].name); }, [convs, peer]);
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -31,41 +32,68 @@ export default function Inbox() {
 
   if (error) return <p className="err">{error}</p>;
   return (
-    <div>
-      <div className="tabs">
-        <button className={tab === "messages" ? "active" : ""} onClick={() => setTab("messages")}>Nachrichten</button>
-        <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>Benachrichtigungen</button>
+    <>
+      <h1 className="pane-head">Nachrichten</h1>
+      <div className="tab-bar">
+        <nav>
+          <button className={tab === "messages" ? "active" : ""} onClick={() => setTab("messages")}>Private Nachrichten</button>
+          <button className={tab === "notifications" ? "active" : ""} onClick={() => setTab("notifications")}>Benachrichtigungen</button>
+        </nav>
       </div>
-      {tab === "messages" && (
-        <div className="row" style={{ alignItems: "flex-start" }}>
-          <div className="panel" style={{ minWidth: 220 }}>
-            {convs.length === 0 && <span className="dim">Keine Unterhaltungen.</span>}
-            {convs.map((c) => (
-              <div key={c.name}><button style={{ width: "100%", textAlign: "left", marginBottom: 4 }} onClick={() => setPeer(c.name)}>
-                {c.name} {c.unreadCount > 0 && <span className="badge">{c.unreadCount}</span>}<br /><span className="dim">{c.lastMessagePreview}</span>
-              </button></div>
+      <div className="pane wide">
+        {tab === "messages" ? (
+          <div className="inbox-layout">
+            <div className="conversations-pane">
+              {convs.length === 0 && <span className="dim">Keine Unterhaltungen.</span>}
+              {convs.map((c) => (
+                <button
+                  key={c.name}
+                  className={`conv-item${c.name === peer ? " active" : ""}`}
+                  title={c.lastMessagePreview}
+                  onClick={() => setPeer(c.name)}
+                >
+                  {c.name}{c.unreadCount > 0 && <span className="dot">●</span>}
+                  <span className="time">{ago(c.lastMessage)}</span>
+                </button>
+              ))}
+            </div>
+            <div className="private-messages">
+              {peer ? (
+                <>
+                  <div className="pm-head">
+                    <span>Unterhaltung mit <Link href={`/user/${peer}`} className="user">{peer}</Link> <span className="dot" style={{ color: "#5bb91c" }}>●</span></span>
+                  </div>
+                  <form className="private-message-form" onSubmit={send}>
+                    <textarea placeholder={`Nachricht an ${peer} schreiben`} value={text} onChange={(e) => setText(e.target.value)} />
+                    <div><button className="primary">Abschicken</button></div>
+                  </form>
+                  <div className="inbox-messages">
+                    {msgs.map((m) => (
+                      <div key={m.id} className={`pm-message${m.sent ? " mine" : ""}`}>
+                        <p className="pm-text">{m.message}</p>
+                        <div className="pm-meta">{m.sent ? getMe()?.n : peer} <span style={{ color: "#5bb91c" }}>●</span> {ago(m.created)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <span className="dim">Wähle eine Unterhaltung.</span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div>
+            {notes.length === 0 && <span className="dim">Nichts Neues.</span>}
+            {notes.map((n) => (
+              <div key={n.id} className="notification">
+                {n.type === "follow" ? <Link href={`/user/${n.name}`}>{n.name} folgt dir</Link> : <Link href={`/item/${n.itemId}`}>{n.name} ({n.type})</Link>}
+                <span className="time"> {ago(n.created)}</span>
+                {n.content && <div className="pm-text">{n.content}</div>}
+              </div>
             ))}
           </div>
-          {peer && (
-            <div className="panel" style={{ flex: 1 }}>
-              <h3 style={{ marginTop: 0 }}>{peer}</h3>
-              {msgs.map((m) => <p key={m.id} style={{ textAlign: m.sent ? "right" : "left" }}><span className="dim">{ago(m.created)}</span><br />{m.message}</p>)}
-              <form className="row" onSubmit={send}><input style={{ flex: 1 }} value={text} onChange={(e) => setText(e.target.value)} placeholder="Nachricht schreiben…" /><button className="primary">Senden</button></form>
-            </div>
-          )}
-        </div>
-      )}
-      {tab === "notifications" && (
-        <div>
-          {notes.length === 0 && <span className="dim">Nichts Neues.</span>}
-          {notes.map((n) => (
-            <div key={n.id} className="comment">
-              <div className="meta">{n.type === "follow" ? <Link href={`/user/${n.name}`}>{n.name} folgt dir</Link> : <Link href={`/item/${n.itemId}`}>{n.name} ({n.type})</Link>}<span>{ago(n.created)}</span></div>
-              {n.content}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   );
 }

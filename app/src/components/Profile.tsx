@@ -2,10 +2,9 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, ago, getMe, mediaUrl } from "@/lib/client/api";
-import { markColor } from "@/lib/marks";
 
 type Thumb = { id: number; thumb: string };
-type Col = { id: number; name: string; itemCount: number; items: Thumb[] };
+type Col = { id: number; name: string; itemCount: number; items: Thumb[]; isPublic: number; isDefault: number };
 type Cmt = { id: number; content: string; created: number; itemId: number; up: number; down: number };
 type Info = {
   user: { name: string; score: number; registered: number; mark: number };
@@ -54,14 +53,13 @@ export default function Profile({ name }: { name: string }) {
         <span>Sammlungen <em>{info.collections.length}</em></span>
         <span>Kommentare <em>{info.commentCount}</em></span>
         <span>Follower <em>{info.followCount}</em></span>
-        <span className="user-mark" style={{ color: markColor(info.user.mark) }}>●</span>
       </div>
-      <h2 className="section">Neueste Hochlads</h2>
+      <h2 className="section">Neueste Hochlads <Link className="section-link" href={`/search?tags=${encodeURIComponent(`u:${info.user.name}`)}`}>Alle Hochlads…</Link></h2>
       <div className="grid">{info.uploads.map((u) => <Link key={u.id} className="tile" href={`/item/${u.id}`}><img src={mediaUrl(u.thumb)} alt="" /></Link>)}</div>
       {info.collections.map((c) => (
         <section key={c.id}>
           <h2 className="section">
-            Sammlung: {c.name}
+            Sammlung: {c.name} <span className="section-meta">({c.isPublic ? "öffentlich" : "privat"}{c.isDefault ? ", Standard" : ""})</span>
             {me && !self && <button className="user-action" onClick={() => api.post("collections/follow", { collectionId: c.id }).catch(() => undefined)}>folgen</button>}
           </h2>
           <div className="grid">{c.items.map((i) => <Link key={i.id} className="tile" href={`/item/${i.id}`}><img src={mediaUrl(i.thumb)} alt="" /></Link>)}</div>

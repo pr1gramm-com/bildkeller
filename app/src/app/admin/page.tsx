@@ -15,8 +15,10 @@ export default function Admin() {
 
   if (error) return <p className="err">{error === "forbidden" ? "Nur für Moderatoren." : error}</p>;
   return (
-    <div className="stack" style={{ maxWidth: "none" }}>
-      <div className="panel">
+    <>
+      <h1 className="pane-head">Moderation</h1>
+      <div className="stack" style={{ maxWidth: "none" }}>
+        <div className="panel">
         <h3>Meldungen</h3>
         {reports.length === 0 && <span className="dim">Keine offenen Meldungen.</span>}
         <table><tbody>
@@ -42,6 +44,7 @@ export default function Admin() {
           <button type="button" onClick={() => api.post("admin/unban", { name: ban.name }).then(() => setMsg("Entbannt.")).catch((er) => setMsg(er.message))}>Entbannen</button></div>
         {msg && <span className="dim">{msg}</span>}
       </form>
-    </div>
+      </div>
+    </>
   );
 }

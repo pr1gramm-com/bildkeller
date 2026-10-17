@@ -9,3 +9,4 @@ dist/
 .superpowers/
 app/AGENTS.md
 next-env.d.ts
+.qa/
