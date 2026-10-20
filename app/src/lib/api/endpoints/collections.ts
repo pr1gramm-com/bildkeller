@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/envelope";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
@@ -58,6 +58,17 @@ register("collections.get", async (ctx) => {
   }
   if (!ctx.user) return fail("not logged in");
   return ok({ collections: await collectionsOf(ctx.user.userId, true, ctx.user), curatorCollections: [] });
+});
+
+register("collections.subscriptions", async (ctx) => {
+  if (!ctx.user) return fail("not logged in");
+  const rows = await db.select({ id: schema.collections.id, name: schema.collections.name, owner: schema.users.name })
+    .from(schema.subscriptions)
+    .innerJoin(schema.collections, eq(schema.collections.id, schema.subscriptions.collectionId))
+    .innerJoin(schema.users, eq(schema.users.id, schema.collections.userId))
+    .where(and(eq(schema.subscriptions.userId, ctx.user.userId), or(eq(schema.collections.isPublic, true), eq(schema.collections.userId, ctx.user.userId))))
+    .orderBy(schema.collections.name, schema.collections.id);
+  return ok({ subscriptions: rows });
 });
 
 register("collections.create", async (ctx) => {

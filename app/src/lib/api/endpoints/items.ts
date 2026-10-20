@@ -109,6 +109,8 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const history = itemHistory(preferences?.seenItems ?? "[]");
   const historyFeed = ctx.query.get("history") === "1";
   const collectionId = int(ctx.query.get("collection"), 0);
+  const subscriptionsFeed = ctx.query.get("subscribed") === "1";
+  if (subscriptionsFeed && !user) return fail("not logged in");
   if (historyFeed && !user) return fail("not logged in");
   if (collectionId) {
     const [collection] = await db.select().from(schema.collections).where(eq(schema.collections.id, collectionId)).limit(1);
@@ -180,10 +182,24 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
   const collectionAdded = sql`(select ci.added from collection_items ci where ci.collection_id = ${collectionId} and ci.item_id = ${schema.items.id})`;
   const randomOrder = sql`md5(${schema.items.id}::text || ':' || ${tq.randomSeed ?? ""})`;
+  const subscribedAddition = sql`(select max(ci.added) from collection_items ci
+    join subscriptions s on s.collection_id = ci.collection_id
+    join collections c on c.id = ci.collection_id
+    where ci.item_id = ${schema.items.id} and s.user_id = ${user?.userId ?? 0}
+    and (c.is_public or c.user_id = ${user?.userId ?? 0}))`;
+  const subscriptionOrder = sql`greatest(${schema.items.created}, coalesce(${subscribedAddition}, ${schema.items.created}))`;
+  if (subscriptionsFeed) conds.push(sql`(${subscribedAddition} is not null or exists (
+    select 1 from follows f where f.follower_id = ${user!.userId} and f.followee_id = ${schema.items.userId}))`);
   if (collectionId) conds.push(sql`exists (select 1 from collection_items ci where ci.collection_id = ${collectionId} and ci.item_id = ${schema.items.id})`);
   if (historyFeed) {
     const start = idParam ? history.indexOf(idParam) : older ? history.indexOf(older) + 1 : 0;
     conds.push(inArray(schema.items.id, start < 0 ? [] : history.slice(start)));
+  } else if (subscriptionsFeed && older > 0) {
+    const cursor = idParam || older;
+    const [entry] = await db.select({ time: subscriptionOrder }).from(schema.items).where(eq(schema.items.id, cursor)).limit(1);
+    conds.push(entry ? idParam
+      ? sql`(${subscriptionOrder}, ${schema.items.id}) <= (${entry.time}, ${cursor})`
+      : sql`(${subscriptionOrder}, ${schema.items.id}) < (${entry.time}, ${cursor})` : sql`false`);
   } else if (tq.randomSeed && older > 0) {
     const cursor = idParam || older;
     const cursorHash = sql`md5(${String(cursor)} || ':' || ${tq.randomSeed})`;
@@ -228,7 +244,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
     .where(and(...conds))
     .orderBy(
-      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : tq.randomSeed ? [asc(randomOrder), asc(schema.items.id)] : collectionId ? [desc(collectionAdded), desc(schema.items.id)] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
+      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : subscriptionsFeed ? [desc(subscriptionOrder), desc(schema.items.id)] : tq.randomSeed ? [asc(randomOrder), asc(schema.items.id)] : collectionId ? [desc(collectionAdded), desc(schema.items.id)] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
     )
     .limit(pageSize + 1);
 

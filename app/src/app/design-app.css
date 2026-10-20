@@ -485,3 +485,13 @@ html[data-design="app"] button.avatar-select { border-radius: 50%; background: t
   html[data-design="app"] .user-page { display: flex; flex-direction: column; }
   html[data-design="app"] .user-stats, html[data-design="app"] .user-counts { padding: 8px 0; }
 }
+
+.profile-tabs { display: none; }
+.profile-content { min-width: 0; }
+html[data-design="app"] .profile-tabs { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); }
+html[data-design="app"] .profile-tabs a { padding: 8px 0; }
+html[data-design="app"] .profile-tabs a[aria-current="page"] { color: var(--main); border-bottom: 2px solid var(--main); }
+html[data-design="app"] .profile-tabs em { font-style: normal; color: var(--dim); }
+html[data-design="app"] .classic-profile-details { display: none; }
+html[data-design="app"] .app-preferences h2,
+html[data-design="app"] .app-preferences h3 { text-transform: none; }

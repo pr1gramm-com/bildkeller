@@ -25,10 +25,11 @@ type Props = {
   startAt?: number;
   history?: boolean;
   collection?: number;
+  subscribed?: boolean;
 };
 
 /** Thumbnail grid; a clicked post opens inline below its row (like pr0gramm.com), the URL follows via the History API. */
-export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt, history = false, collection }: Props) {
+export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt, history = false, collection, subscribed = false }: Props) {
   const [items, setItems] = useState<ApiItem[]>([]);
   const [atEnd, setAtEnd] = useState(false);
   const [error, setError] = useState("");
@@ -59,6 +60,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
         if (junk) params.junk = 1;
         if (history) params.history = 1;
         if (collection) params.collection = collection;
+        if (subscribed) params.subscribed = 1;
         if (older) params.older = older;
         else if (startAt) params.id = startAt;
         if (tags) params.tags = tags;
@@ -75,7 +77,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
         if (mine === gen.current) loading.current = false;
       }
     },
-    [flags, promoted, junk, tags, user, users, chronicle, startAt, history, collection, preferences.junkSeparation, preferences.markSeenItems],
+    [flags, promoted, junk, tags, user, users, chronicle, startAt, history, collection, subscribed, preferences.junkSeparation, preferences.markSeenItems],
   );
 
   useEffect(() => {

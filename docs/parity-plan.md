@@ -140,3 +140,20 @@ Remote-Typecheck, **171/171 Tests in 26 Dateien**, Produktionsbuild und Sicherhe
 Nachreview bestanden. Ego bestätigt Zuschnitt, 512px-Ausgabe, Reload und Navigation;
 agent-browser bestätigt Classic-Anzeige und Entfernen nach Reload ohne Runtimefehler.
 Mobiles Profil bei 390×844: kein horizontaler Überlauf.
+
+## Sechste Korrektureinheit
+
+- App-Profile haben getrennte Bereiche für Hochlads, Sammlungen, Kommentare und
+  sichtbare Kommentarfavoriten. Kommentarbereiche behalten Profilkopf und Pagination.
+  Profilkacheln verlinken in den jeweiligen Upload-/Sammlungsfeed.
+- Sammlungsabos zeigen ihren gespeicherten Zustand und lassen sich entfolgen.
+  Der Abo-Feed kombiniert gefolgte Benutzer mit Beiträgen abonnierter Sammlungen;
+  hinzugefügte Sammlungsbeiträge werden mit ihrem Hinzufügungszeitpunkt berücksichtigt.
+- Aboverwaltung listet Benutzer und zugängliche Sammlungen. Private Fremdsammlungen,
+  gesperrte Inhaltsratings und blockierte Uploader werden ausgeschlossen.
+  Ein leerer Abo-Feed zeigt keine unverbundenen globalen Beiträge.
+
+Remote-Typecheck, **175/175 Tests in 27 Dateien**, Build und Review bestanden.
+Zwei-Konten-Browserablauf: Admin erstellt öffentliche Sammlung und fügt Beitrag hinzu;
+Alice abonniert, öffnet Beitrag, lädt neu, schließt und entfolgt wieder. Classic über
+agent-browser ohne Runtimefehler; App über ego-lite zusätzlich bei 390×844 ohne Überlauf.

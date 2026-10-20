@@ -10,6 +10,7 @@ export type ApiCollection = {
   isPublic: number;
   isDefault: number;
   itemCount: number;
+  subscribed: boolean;
   items: Array<{ id: number; thumb: string; preview: string | null; flags: number }>;
 };
 
@@ -48,6 +49,8 @@ export async function toApiCollection(
     .where(and(eq(schema.collectionItems.collectionId, c.id), itemVisible(viewer)))
     .orderBy(desc(schema.collectionItems.added))
     .limit(10);
+  const subscribed = viewer ? await db.select({ id: schema.subscriptions.collectionId }).from(schema.subscriptions)
+    .where(and(eq(schema.subscriptions.userId, viewer.userId), eq(schema.subscriptions.collectionId, c.id))).limit(1) : [];
   return {
     id: c.id,
     name: c.name,
@@ -55,6 +58,7 @@ export async function toApiCollection(
     isPublic: c.isPublic ? 1 : 0,
     isDefault: c.isDefault ? 1 : 0,
     itemCount: Number(count.c),
+    subscribed: subscribed.length > 0,
     items,
   };
 }

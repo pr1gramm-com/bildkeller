@@ -100,3 +100,11 @@ These could not be observed from the outside, or are simplified. Clients should 
 von 0 bis 100 (Standard 50), `zoom` von 1 bis 4 (Standard 1). Die Ausgabe ist 512×512 PNG.
 `remove=1` entfernt das eigene Profilbild. Antwort: Envelope mit `settings`.
 Ein Avatarpfad kann nicht über `user/sitesettings` gesetzt werden.
+
+### Abo-Feed und Verwaltung (eigene Erweiterung)
+
+`GET /api/collections/subscriptions` liefert die für das eingeloggte Konto zugänglichen
+Sammlungsabos als `subscriptions: [{id,name,owner}]`. Sammlungsobjekte enthalten
+zusätzlich das eigene Boolean-Feld `subscribed`.
+`GET /api/items/get?subscribed=1` kombiniert gefolgte Uploader und sichtbare abonnierte
+Sammlungen, einschließlich Keyset-Pagination und `id`-Deep-Links. Login ist erforderlich.
