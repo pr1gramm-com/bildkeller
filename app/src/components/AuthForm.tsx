@@ -31,12 +31,12 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
     <div className="overlay-box">
       <form className="overlay-content" onSubmit={submit}>
         <h2>{mode === "login" ? "Anmelden" : "Neu registrieren"}</h2>
-        <div className="form-row"><label>Benutzername:</label><input placeholder="Name" value={f.name} onChange={set("name")} required autoFocus /></div>
-        <div className="form-row"><label>Passwort:</label><input type="password" placeholder="Passwort" minLength={8} value={f.password} onChange={set("password")} required /></div>
+        <div className="form-row"><label>Benutzername:</label><input name="name" placeholder="Name" value={f.name} onChange={set("name")} required autoFocus /></div>
+        <div className="form-row"><label>Passwort:</label><input name="password" type="password" placeholder="Passwort" minLength={8} value={f.password} onChange={set("password")} required /></div>
         {mode === "register" && (
           <>
-            <div className="form-row"><label>E-Mail (optional):</label><input type="email" placeholder="E-Mail" value={f.email} onChange={set("email")} /></div>
-            <div className="form-row"><label>Einladungscode (leer beim ersten Account):</label><input placeholder="Einladungscode" value={f.invite} onChange={set("invite")} /></div>
+            <div className="form-row"><label>E-Mail (optional):</label><input name="email" type="email" placeholder="E-Mail" value={f.email} onChange={set("email")} /></div>
+            <div className="form-row"><label>Einladungscode (leer beim ersten Account):</label><input name="invite" placeholder="Einladungscode" value={f.invite} onChange={set("invite")} /></div>
             <label className="age"><input type="checkbox" checked={f.age} onChange={set("age")} /> <span>Ich bin mindestens 18 (schaltet NSFW/NSFL frei)</span></label>
           </>
         )}

@@ -266,7 +266,7 @@ html[data-design="app"] .item-fav { position: static; display: inline-flex; gap:
 html[data-design="app"] button.vote-fav { position: static; color: var(--app-dim); }
 html[data-design="app"] .collect-menu { background: var(--app-panel); border-radius: 6px; }
 
-html[data-design="app"] .item-details { max-width: 1052px; margin: 0 auto; padding: 0; gap: 0 8px; font-size: 13px; align-items: center; }
+html[data-design="app"] .item-details { width: 100%; max-width: 1052px; margin: 0 auto; padding: 0; gap: 0 8px; font-size: 13px; align-items: center; }
 html[data-design="app"] .item-details .von { display: none; }
 html[data-design="app"] .item-details .user { order: 1; margin-left: 0; font-weight: 600; }
 html[data-design="app"] .item-details .mark { order: 2; margin-left: 0; }
@@ -300,6 +300,7 @@ html[data-design="app"] .user-page {
   background-repeat: no-repeat;
   background-position: top center;
 }
+html[data-design="app"] .user-page > * { grid-column: 1; }
 html[data-design="app"] .user-head { grid-column: 1 / -1; padding: 32px 0 4px; font-size: 32px; font-weight: 600; }
 html[data-design="app"] .user-stats { grid-column: 2; grid-row: 2; display: flex; flex-direction: column; gap: 6px; padding: 0; font-size: 14px; }
 html[data-design="app"] .user-counts { grid-column: 2; grid-row: 3; display: flex; flex-direction: column; gap: 4px; padding: 12px 0 0; font-size: 14px; }
@@ -368,8 +369,10 @@ html[data-design="app"] #design-toggle .dt-app { color: #fff; }
   html[data-design="app"] main { grid-column: 1; padding-bottom: 64px; }
   html[data-design="app"] #app-nav { grid-template-columns: auto minmax(0, 1fr) auto; padding: 0 8px; }
   html[data-design="app"] #app-burger { display: inline-flex; color: #fff; order: -1; }
+  html[data-design="app"] .an-left .logo { width: 26px; overflow: hidden; }
+  html[data-design="app"] #filter-link-name { display: none; }
   html[data-design="app"] .an-center { justify-content: flex-end; }
-  html[data-design="app"] .an-search input { width: 120px; }
+  html[data-design="app"] .an-search input { width: 90px; }
   html[data-design="app"] .an-create { font-size: 0; gap: 0; }
   html[data-design="app"] .an-create svg { width: 20px; height: 20px; }
   html[data-design="app"] .an-name { display: none; }
