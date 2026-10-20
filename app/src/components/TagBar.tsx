@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { api, useMe } from "@/lib/client/api";
+import { usePreferences } from "@/lib/client/preferences";
 
 export type ApiTag = { id: number; tag: string; confidence: number };
 const MIN_CONFIDENCE = 0.2;
@@ -13,6 +14,8 @@ export default function TagBar({ itemId, tags, onChange }: { itemId: number; tag
   const [text, setText] = useState("");
   const [adding, setAdding] = useState(false);
   const me = useMe();
+  const preferences = usePreferences();
+  const [error, setError] = useState("");
   const visible = tags.filter((t) => t.confidence >= MIN_CONFIDENCE).sort((a, b) => b.confidence - a.confidence);
   const shown = expanded ? visible : visible.slice(0, MAX_VISIBLE);
 
@@ -29,7 +32,7 @@ export default function TagBar({ itemId, tags, onChange }: { itemId: number; tag
               <span className="tv">
                 <button title="passt" onClick={() => vote(t.tag, true)}>+</button>
                 <button title="passt nicht" onClick={() => vote(t.tag, false)}>−</button>
-                <button title="Tag blockieren" onClick={() => api.post("profile/blockTag", { tag: t.tag }).catch(() => undefined)}>⊘</button>
+                {preferences.showBlockActions && <button title="Tag blockieren" onClick={() => api.post("profile/blockTag", { tag: t.tag }).then(() => window.dispatchEvent(new Event("bildkeller:blocks"))).catch((e) => setError(e.message))}>⊘</button>}
               </span>
             )}
           </span>
@@ -56,6 +59,7 @@ export default function TagBar({ itemId, tags, onChange }: { itemId: number; tag
         </form>
       )}
       {me && visible.length >= MAX_TAGS && <p className="dim">Du kannst maximal {MAX_TAGS} Tags hinzufügen!</p>}
+      {error && <p className="err" role="alert">{error}</p>}
     </div>
   );
 }

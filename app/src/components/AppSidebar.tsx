@@ -6,6 +6,7 @@ import { api, useMe } from "@/lib/client/api";
 import Icon from "./Icon";
 import { useSavedSearches } from "@/lib/client/bookmarks";
 import { savedSearchHref } from "@/lib/saved-searches";
+import { usePreferences } from "@/lib/client/preferences";
 
 const REPO = "https://github.com/pr1gramm-com/bildkeller";
 
@@ -21,6 +22,7 @@ type Collection = { id: number; name: string; isDefault: number; itemCount: numb
 export default function AppSidebar() {
   const path = usePathname();
   const me = useMe();
+  const preferences = usePreferences();
   const { searches, error } = useSavedSearches();
   const [collections, setCollections] = useState<Collection[]>([]);
 
@@ -43,6 +45,7 @@ export default function AppSidebar() {
     { href: "/stalk", label: "Abos", icon: "rss" as const },
     { href: "/top/!%20s%3A600", label: "Best of", icon: "star" as const },
     { href: "/calendar", label: "Kalender", icon: "calendar" as const },
+    ...(me && preferences.showSeenNav ? [{ href: "/seen", label: "Gesehene Hochlads", icon: "play" as const }] : []),
     ...(me ? [{ href: `/user/${me.n}/uploads`, label: "Meine Uploads", icon: "user" as const }] : []),
     ...(me ? [{ href: "/settings", label: "Einstellungen", icon: "settings" as const }] : []),
   ];
@@ -68,7 +71,7 @@ export default function AppSidebar() {
         ))}
       </nav>
 
-      <div className="side-section">
+      {preferences.showBookmarkBar && <div className="side-section">
         <div className="side-head">
           <span>Lesezeichen</span>
           <span className="side-head-line" />
@@ -82,7 +85,7 @@ export default function AppSidebar() {
             <span>{s.name}</span>
           </Link>
         ))}
-      </div>
+      </div>}
 
       <div className="side-section">
         <div className="side-head">

@@ -3,11 +3,13 @@ import Link from "next/link";
 import { useMe } from "@/lib/client/api";
 import { useSavedSearches } from "@/lib/client/bookmarks";
 import { savedSearchHref } from "@/lib/saved-searches";
+import { usePreferences } from "@/lib/client/preferences";
 
 /** The reference board's "⋯" menu: quick links to the personal feeds. */
 export default function BookmarksMenu({ onClose }: { onClose: () => void }) {
   const me = useMe();
   const { searches } = useSavedSearches();
+  const preferences = usePreferences();
   const rows: Array<[string, string, string]> = [
     ["/user/uploads", "u", "meine Hochlads"],
     ["/stalk", "@", "Stelzungen"],
@@ -29,6 +31,7 @@ export default function BookmarksMenu({ onClose }: { onClose: () => void }) {
           <Link href={savedSearchHref(s)} onClick={onClose}>{s.name}</Link>
         </div>)}
         {me && <div className="bookmark-row"><Link href="/bookmarks" onClick={onClose}>Lesezeichen verwalten</Link></div>}
+        {me && preferences.showSeenNav && <div className="bookmark-row"><Link href="/seen" onClick={onClose}>Gesehene Hochlads</Link></div>}
         <div className="bookmarks-head">
           <span className="bookmarks-head-type">Weitere</span>
           <span className="bookmarks-head-divider" />

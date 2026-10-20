@@ -12,7 +12,7 @@ type Info = {
   status: string;
   background: string;
   uploads: Thumb[]; uploadCount: number; commentCount: number; followCount: number; commentLikesCount: number;
-  following: boolean; blocked: boolean; comments: Cmt[]; collections: Col[]; commentLikes: Cmt[];
+  following: boolean; blocked: boolean; likesArePublic: boolean; comments: Cmt[]; collections: Col[]; commentLikes: Cmt[];
 };
 
 export default function Profile({ name }: { name: string }) {
@@ -23,7 +23,7 @@ export default function Profile({ name }: { name: string }) {
     () =>
       Promise.all([
         api.get("profile/info", { name, flags: 31 }),
-        api.get("profile/commentlikes").catch(() => ({ comments: [] })),
+        api.get("profile/commentlikes", { name }).catch(() => ({ comments: [] })),
       ])
         .then(([i, likes]) => setInfo({ ...i, commentLikes: likes.comments ?? [] }))
         .catch((e) => setError(e.message)),
@@ -100,7 +100,7 @@ export default function Profile({ name }: { name: string }) {
           </div>
         ))}
       </div>
-      {self && (
+      {(self || info.likesArePublic) && (
         <>
           <h2 className="section">
             Neueste Kommentar-Favoriten

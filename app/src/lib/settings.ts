@@ -1,42 +1,8 @@
 import { eq } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 
-export const DEFAULT_SETTINGS = {
-  themeId: 0,
-  layoutMode: "modern",
-  arrowKeyMode: "legacy",
-  contentMaxWidth: "auto",
-  itemLayoutMode: "modern",
-  blockedCommentMode: "collapse_subtree",
-  showAds: false,
-  favUpvote: false,
-  legacyPath: false,
-  enableItemHistory: false,
-  markSeenItems: false,
-  showSeenNav: false,
-  showVideoPreview: true,
-  enableVoteToggle: false,
-  enableDailyDigest: false,
-  enableWeeklyDigest: false,
-  enableEmailNotifications: false,
-  junkSeparation: false,
-  collapseLongComments: false,
-  hideDownvotedComments: false,
-  autoCollapseDeepComments: false,
-  sfwResetEnabled: false,
-  defaultToNew: false,
-  colorCommentIndentationLines: false,
-  showBookmarkBar: true,
-  showBlockActions: true,
-  showAvatars: true,
-  showThumbnailFlags: false,
-  likesArePublic: false,
-  mediaServer: "default",
-  deviceMail: true,
-  savedSearches: "[]",
-} as const;
-
-export type Settings = { -readonly [K in keyof typeof DEFAULT_SETTINGS]: (typeof DEFAULT_SETTINGS)[K] extends boolean ? boolean : (typeof DEFAULT_SETTINGS)[K] extends number ? number : string };
+import { DEFAULT_SETTINGS, type Settings } from "./site-settings";
+export { DEFAULT_SETTINGS, type Settings } from "./site-settings";
 
 export async function getSettings(userId: number): Promise<Settings> {
   const row = (await db.select().from(schema.userSettings).where(eq(schema.userSettings.userId, userId)).limit(1))[0];

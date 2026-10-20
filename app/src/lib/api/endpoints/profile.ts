@@ -11,6 +11,7 @@ import { int } from "@/lib/params";
 import { itemVisible } from "@/lib/visibility";
 import { userStatus } from "@/lib/status";
 import type { ApiCtx, SessionUser } from "@/lib/types";
+import { getSettings } from "@/lib/settings";
 
 const now = () => Math.floor(Date.now() / 1000);
 const count = (q: Promise<Array<{ c: number }>>) => q.then((r) => Number(r[0].c));
@@ -37,6 +38,7 @@ register("profile.info", async (ctx) => {
   );
   const viewer = ctx.user?.userId ?? 0;
   const isSelf = viewer === target.id;
+  const preferences = await getSettings(target.id);
 
   const [uploads, uploadCount, commentCount, favCount, followers, updown, comments, isFollowing, isBlocked, collections, collectedCount] =
     await Promise.all([
@@ -141,7 +143,7 @@ register("profile.info", async (ctx) => {
     followCount: followers,
     following: isFollowing > 0,
     subscribed: isFollowing > 0, // shortcut: subscribe == follow, split when notification prefs exist
-    likesArePublic: false,
+    likesArePublic: preferences.likesArePublic,
     pr0mium: false,
     pr0miumGift: false,
     tagCount: 0, // shortcut: tag authorship is not tracked yet
@@ -181,9 +183,14 @@ register("profile.comments", async (ctx) => {
   return ok({ comments: rows.slice(0, 20), hasOlder: rows.length > 20 });
 });
 
-// Likes are private: only the owner sees their favorited comments.
+// The owner controls whether their comment favorites are public.
 register("profile.commentlikes", async (ctx) => {
-  if (!ctx.user) return fail("not logged in");
+  const name = ctx.query.get("name") ?? ctx.user?.name;
+  if (!name) return fail("not logged in");
+  const owner = await userByName(name);
+  if (!owner || owner.deleted) return fail("not found");
+  if (owner.id !== ctx.user?.userId && !(await getSettings(owner.id)).likesArePublic) return fail("forbidden");
+  const before = int(ctx.query.get("before"), 0);
   const rows = await db
     .select({
       id: schema.comments.id,
@@ -197,10 +204,10 @@ register("profile.commentlikes", async (ctx) => {
     .from(schema.commentFavorites)
     .innerJoin(schema.comments, eq(schema.comments.id, schema.commentFavorites.commentId))
     .innerJoin(schema.items, eq(schema.items.id, schema.comments.itemId))
-    .where(and(eq(schema.commentFavorites.userId, ctx.user.userId), eq(schema.comments.deleted, false), itemVisible(ctx.user)))
+    .where(and(eq(schema.commentFavorites.userId, owner.id), eq(schema.comments.deleted, false), itemVisible(ctx.user), before > 0 ? sql`${schema.comments.id} < ${before}` : undefined))
     .orderBy(desc(schema.comments.id))
-    .limit(50);
-  return ok({ comments: rows, hasOlder: false });
+    .limit(21);
+  return ok({ comments: rows.slice(0, 20), hasOlder: rows.length > 20 });
 });
 
 async function setFollow(ctx: ApiCtx, on: boolean) {

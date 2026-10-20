@@ -49,6 +49,30 @@ Diese Liste ist ein Arbeitsstand und keine abschließende Inventur:
 - Rückwärtssuche vergleicht bisher nur identische Dateien; Ähnlichkeitssuche fehlt.
 - Mail-/Digest-Einstellungen sind bisher keine bestätigte Mailzustellung.
 
+## Zweite Korrektureinheit
+
+- Kontoeinstellungen werden zentral gelesen und nach Änderungen veröffentlicht;
+  schnelle Schreibvorgänge werden in Reihenfolge gespeichert.
+- Verlauf ist opt-in, benutzergebunden, nach Aufruf sortiert, paginiert und löschbar.
+  Gesehene Kacheln, Verlaufsnavigation und Startfeed folgen den Einstellungen.
+- Favoriten und eigene Votes zeigen den serverseitigen Zustand. Automatischer
+  Favoriten-Upvote ist unter derselben Sperre wie normale Votes idempotent.
+  Der lokale Sync speichert Votes und Cursor atomar und funktioniert ohne Browserstorage.
+- Kommentare unterstützen Antwort-/Bearbeitungsfehler ohne Entwurfsverlust,
+  Bearbeitungsverlauf, direkte Kommentarlinks, Link-/Erwähnungserkennung und
+  Einstellungen für lange, negative oder tief verschachtelte Kommentare.
+- Kommentarfavoriten respektieren die Profil-Privatsphäre. Öffentliche Sammlungen
+  sind für Gäste lesbar; blockierte Tags werden aus Feeds ausgeschlossen.
+- Benachrichtigungen sind paginiert und berücksichtigen sichtbare Beiträge;
+  das Postfach unterstützt neue Empfänger und erhält fehlgeschlagene Nachrichtenentwürfe.
+
+Remote-Nachweis dieser Einheit: Typecheck und **152/152 Tests in 21 Dateien** bestanden,
+Produktionsbuild erfolgreich. Das fokussierte Review der Verlaufsabfrage,
+Kommentar-Clipping-, Präferenzcache- und Vote-Synchronisierungskorrekturen ist freigegeben.
+Ego-Browser bestätigt Favoriten inklusive automatischem Upvote nach Neuladen sowie
+Verlauf und Gesehen-Markierung. Weitere Browserabnahme und die oben genannten Lücken
+stehen weiterhin aus; dies ist keine vollständige Paritätsbestätigung.
+
 ## Nachweise der ersten Korrektureinheit
 
 In der separaten Validierungs-VM: `pnpm install --frozen-lockfile`, `pnpm type-check`,

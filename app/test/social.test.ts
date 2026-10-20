@@ -4,6 +4,7 @@ import { handle } from "@/lib/api/router";
 import "@/lib/api/register-all";
 import { createItem, createTestUser, cookieFor } from "./helpers";
 import { createSession } from "@/lib/auth";
+import { updateSettings } from "@/lib/settings";
 
 type ReqInit = { method?: string; body?: BodyInit; headers?: Record<string, string> };
 const req = (path: string, init?: ReqInit) => new NextRequest(`http://localhost:3000${path}`, init);
@@ -41,6 +42,17 @@ const PROFILE_KEYS = [
 ];
 
 describe("profile", () => {
+  it("shares comment favorites only when their owner enables public visibility", async () => {
+    const comment = await json(await post("/api/comments/post", { itemId: String(itemId), content: "public favorites test" }, b.token));
+    await post("/api/comments/fav", { id: String(comment.commentId) }, a.token);
+    expect((await json(await get(`/api/profile/commentlikes?name=${a.name}`, b.token))).error).toBe("forbidden");
+    await updateSettings(a.id, { likesArePublic: "true" });
+    const shared = await json(await get(`/api/profile/commentlikes?name=${a.name}`));
+    expect(shared.comments.some((c: { id: number }) => c.id === comment.commentId)).toBe(true);
+    await updateSettings(a.id, { likesArePublic: "false" });
+    expect((await json(await get(`/api/profile/commentlikes?name=${a.name}`))).error).toBe("forbidden");
+    await post("/api/comments/unfav", { id: String(comment.commentId) }, a.token);
+  });
   it("profile.info has the observed keys and lists uploads", async () => {
     const body = await json(await get(`/api/profile/info?name=${b.name}&flags=31`, a.token));
     expect(body.error).toBeNull();
@@ -85,6 +97,21 @@ describe("inbox", () => {
 });
 
 describe("collections", () => {
+  it("auto-upvotes new favorites once and exposes the membership state", async () => {
+    const target = await createItem(b.id);
+    const first = await json(await get("/api/collections/get", a.token));
+    const favorite = first.collections.find((c: { isDefault: number }) => c.isDefault === 1);
+    await updateSettings(a.id, { favUpvote: "true" });
+    for (let i = 0; i < 2; i++) await post("/api/collections/add", { collectionId: String(favorite.id), itemId: String(target.id) }, a.token);
+    const info = await json(await get(`/api/items/info?itemId=${target.id}`, a.token));
+    expect(info.collectionIds).toContain(favorite.id);
+    expect(info.vote).toBe(true);
+    const feed = await json(await get(`/api/items/get?id=${target.id}&user=${b.name}`, a.token));
+    expect(feed.items.find((i: { id: number }) => i.id === target.id).up).toBe(1);
+    await post("/api/collections/remove", { collectionId: String(favorite.id), itemId: String(target.id) }, a.token);
+    expect((await json(await get(`/api/items/info?itemId=${target.id}`, a.token))).collectionIds).not.toContain(favorite.id);
+    await updateSettings(a.id, { favUpvote: "false" });
+  });
   it("default Favoriten exists; create, add item, follow", async () => {
     const first = await json(await get("/api/collections/get", a.token));
     expect(first.collections.some((c: { isDefault: number }) => c.isDefault === 1)).toBe(true);

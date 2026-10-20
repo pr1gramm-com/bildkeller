@@ -11,6 +11,9 @@ import { itemVisible, visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 import { changeSettings, getSettings } from "@/lib/settings";
 import { savedSearches } from "@/lib/saved-searches";
+import { voteTarget } from "./items";
+import { logEvent } from "@/lib/sync";
+import { maybePromote } from "@/lib/promote";
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -39,12 +42,11 @@ async function canWrite(id: number, userId: number): Promise<boolean> {
 }
 
 register("collections.get", async (ctx) => {
-  if (!ctx.user) return fail("not logged in");
   const single = int(ctx.query.get("id") ?? ctx.query.get("collectionId"), 0);
   if (single > 0) {
     const c = await load(single);
     if (!c) return fail("not found");
-    if (!c.isPublic && c.userId !== ctx.user.userId) return fail("forbidden");
+    if (!c.isPublic && c.userId !== ctx.user?.userId) return fail("forbidden");
     const items = await db
       .select({ id: schema.items.id, thumb: schema.items.thumb, preview: schema.items.preview, flags: schema.items.flags })
       .from(schema.collectionItems)
@@ -54,6 +56,7 @@ register("collections.get", async (ctx) => {
       .limit(50);
     return ok({ collections: [{ ...(await toApiCollection(c, ctx.user)), items }] });
   }
+  if (!ctx.user) return fail("not logged in");
   return ok({ collections: await collectionsOf(ctx.user.userId, true, ctx.user), curatorCollections: [] });
 });
 
@@ -105,10 +108,18 @@ register("collections.add", async (ctx) => {
   const id = idOf(ctx);
   if (!(await canWrite(id, user.userId))) return fail("forbidden");
   if (!(await visibleItem(user, int(ctx.form.itemId, 0)))) return fail("not found");
-  await db
+  const added = await db
     .insert(schema.collectionItems)
     .values({ collectionId: id, itemId: int(ctx.form.itemId, 0), added: now() })
-    .onConflictDoNothing();
+    .onConflictDoNothing().returning();
+  const collection = await load(id);
+  if (added.length && collection?.isDefault && (await getSettings(user.userId)).favUpvote) {
+    const itemId = int(ctx.form.itemId, 0);
+    if (await voteTarget("items", itemId, true, user.userId, false)) {
+      await logEvent(user.userId, "vote", { target: "item", id: itemId, up: true });
+      await maybePromote(itemId);
+    }
+  }
   return ok({});
 });
 

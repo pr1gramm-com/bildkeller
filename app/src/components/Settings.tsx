@@ -1,8 +1,9 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, getMe, type Me } from "@/lib/client/api";
 import { BACKGROUNDS } from "@/lib/backgrounds";
+import { publishPreferences } from "@/lib/client/preferences";
+import type { Settings as SiteSettings } from "@/lib/site-settings";
 
 const TABS = [
   { href: "/settings/site", label: "Seite" },
@@ -34,7 +35,6 @@ function Radio({ name, value, options, onChange }: { name: string; value: string
 type Setting = boolean | number | string;
 
 export default function Settings({ tab }: { tab: string }) {
-  const router = useRouter();
   const [me, setMe] = useState<Me>(null);
   const [s, setS] = useState<Record<string, Setting>>({});
   const [msg, setMsg] = useState("");
@@ -48,35 +48,42 @@ export default function Settings({ tab }: { tab: string }) {
   const [invites, setInvites] = useState<Array<{ code: string; used: boolean; created: number }>>([]);
   const [collections, setCollections] = useState<Array<{ id: number; name: string; isPublic: number; isDefault: number; itemCount: number }>>([]);
   const [newCollection, setNewCollection] = useState("");
+  const saves = useRef(Promise.resolve());
+  const revision = useRef(0);
 
   useEffect(() => {
     setMe(getMe());
     setReady(true);
     if (!getMe()) return;
-    api.get("user/sync", { offset: 0, limit: 1 }).then((r) => setS(r.settings)).catch(() => undefined);
+    const version = revision.current;
+    api.get("user/settings").then((r) => {
+      if (revision.current !== version) return;
+      setS(r.settings); publishPreferences(r.settings);
+    }).catch((e) => setMsg(e.message));
     api.get("user/deletionStatus").then((r) => setPending(r.pending)).catch(() => undefined);
     api.get("user/info").then((r) => setEmail(r.account?.email ?? "")).catch(() => undefined);
     api.get("user/invitelist").then((r) => setInvites(r.invites ?? [])).catch(() => undefined);
     api.get("collections/get").then((r) => setCollections(r.collections ?? [])).catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    document.documentElement.dataset.theme = String(s.themeId ?? 0);
-  }, [s.themeId]);
-
   if (!ready) return null;
   if (!me) return <p className="err">Bitte einloggen.</p>;
 
-  const set = (key: string, value: Setting) => {
-    setS((prev) => ({ ...prev, [key]: value }));
-    void api.post("user/sitesettings", { [key]: value as string | number });
+  const save = (patch: Record<string, Setting>) => {
+    const version = ++revision.current;
+    setS((prev) => ({ ...prev, ...patch }));
+    saves.current = saves.current.then(() => api.post("user/sitesettings", Object.fromEntries(Object.entries(patch).map(([key, value]) => [key, String(value)])))).then((r: { settings: SiteSettings }) => {
+      if (version !== revision.current) return;
+      setS(r.settings);
+      publishPreferences(r.settings);
+    }).catch((e) => setMsg(e.message));
   };
+  const set = (key: string, value: Setting) => save({ [key]: value });
   const run = (p: Promise<unknown>, ok: string) => p.then(() => setMsg(ok)).catch((e) => setMsg(e.message));
 
   async function logout() {
-    await api.post("user/logout").catch(() => undefined);
-    router.push("/");
-    router.refresh();
+    try { await api.post("user/logout"); window.location.assign("/"); }
+    catch (e) { setMsg(e instanceof Error ? e.message : "Fehler"); }
   }
 
   return (
@@ -117,7 +124,7 @@ export default function Settings({ tab }: { tab: string }) {
               <Radio name="enableEmailNotifications" value={String(s.enableEmailNotifications ?? false)} options={[["true", "E-Mail-Benachrichtigungen aktiviert"], ["false", "Deaktiviert"]]} onChange={(v) => set("enableEmailNotifications", v === "true")} />
               <h3>Zusammenfassungen</h3>
               <p className="dim">Erhalte täglich oder wöchentlich eine Zusammenfassung der Highlights und Top-Hochlads direkt in dein Postfach.</p>
-              <Radio name="enableDailyDigest" value={String(s.enableDailyDigest ?? false)} options={[["true", "Tägliche Zusammenfassung"], ["false", "Wöchentliche Zusammenfassung"]]} onChange={(v) => { set("enableDailyDigest", v === "true"); set("enableWeeklyDigest", v !== "true"); }} />
+              <Radio name="enableDailyDigest" value={String(s.enableDailyDigest ?? false)} options={[["true", "Tägliche Zusammenfassung"], ["false", "Wöchentliche Zusammenfassung"]]} onChange={(v) => { save({ enableDailyDigest: v === "true", enableWeeklyDigest: v !== "true" }); }} />
             </section>
             <h2 className="settings-heading">Mein Benutzer-Status</h2>
             <p>{me.n}</p>
@@ -132,6 +139,23 @@ export default function Settings({ tab }: { tab: string }) {
             <Radio name="enableItemHistory" value={String(s.enableItemHistory ?? false)} options={[["true", "Verlauf speichern"], ["false", "Verlauf nicht speichern"]]} onChange={(v) => set("enableItemHistory", v === "true")} />
             <h2 className="settings-heading">Gesehene Hochlads kennzeichnen</h2>
             <Radio name="markSeenItems" value={String(s.markSeenItems ?? false)} options={[["true", "Gesehene Hochlads kennzeichen"], ["false", "Gesehene Hochlads nicht kennzeichen"]]} onChange={(v) => set("markSeenItems", v === "true")} />
+            <h3>Verlauf in der Navigation</h3>
+            <Radio name="showSeenNav" value={String(s.showSeenNav ?? false)} options={[["true", "Anzeigen"], ["false", "Ausblenden"]]} onChange={(v) => set("showSeenNav", v === "true")} />
+            <button onClick={() => run(api.post("user/clearHistory").then((r) => { publishPreferences(r.settings); window.dispatchEvent(new Event("bildkeller:seen-reset")); }), "Verlauf gelöscht.")}>Verlauf löschen</button>
+            <h3>Startseite</h3>
+            <Radio name="defaultToNew" value={String(s.defaultToNew ?? false)} options={[["true", "Neu"], ["false", "Beliebt"]]} onChange={(v) => set("defaultToNew", v === "true")} />
+            <h3>Lesezeichen-Leiste</h3>
+            <Radio name="showBookmarkBar" value={String(s.showBookmarkBar ?? true)} options={[["true", "Anzeigen"], ["false", "Ausblenden"]]} onChange={(v) => set("showBookmarkBar", v === "true")} />
+            <h3>Inhaltsmarkierung an Thumbnails</h3>
+            <Radio name="showThumbnailFlags" value={String(s.showThumbnailFlags ?? false)} options={[["true", "Anzeigen"], ["false", "Ausblenden"]]} onChange={(v) => set("showThumbnailFlags", v === "true")} />
+            <h3>Lange Kommentare</h3>
+            <Radio name="collapseLongComments" value={String(s.collapseLongComments ?? false)} options={[["true", "Einklappen"], ["false", "Vollständig anzeigen"]]} onChange={(v) => set("collapseLongComments", v === "true")} />
+            <h3>Negativ bewertete Kommentare</h3>
+            <Radio name="hideDownvotedComments" value={String(s.hideDownvotedComments ?? false)} options={[["true", "Ausblenden"], ["false", "Anzeigen"]]} onChange={(v) => set("hideDownvotedComments", v === "true")} />
+            <h3>Tief verschachtelte Kommentare</h3>
+            <Radio name="autoCollapseDeepComments" value={String(s.autoCollapseDeepComments ?? false)} options={[["true", "Einklappen"], ["false", "Anzeigen"]]} onChange={(v) => set("autoCollapseDeepComments", v === "true")} />
+            <h3>Kommentar-Einrückungen einfärben</h3>
+            <Radio name="colorCommentIndentationLines" value={String(s.colorCommentIndentationLines ?? false)} options={[["true", "Aktiviert"], ["false", "Deaktiviert"]]} onChange={(v) => set("colorCommentIndentationLines", v === "true")} />
             <h2 className="settings-heading">Profilhintergrund</h2>
             <p className="dim">Gestalte dein Profil einzigartig mit einem Profilhintergrund.</p>
             <div className="settings-row">
@@ -181,7 +205,10 @@ export default function Settings({ tab }: { tab: string }) {
             )}
             <h2 className="settings-heading">Lokale Browserdaten zurücksetzen</h2>
             <p className="dim">Favoriten und Votes werden zusätzlich lokal in deinem Browser abgelegt. Hier kannst du diese Daten löschen und neu erzeugen lassen.</p>
-            <button onClick={() => { localStorage.removeItem("pr1.flags"); localStorage.removeItem("pr1.filter"); window.location.reload(); }}>Lokale Daten löschen und neu erzeugen</button>
+            <button onClick={() => {
+              for (const key of ["pr1.flags", "pr1.filter", "pr1.search", `bk.sync.${me.n}`, `bk.votes.${me.n}`, `bk.offset.${me.n}`]) localStorage.removeItem(key);
+              window.location.reload();
+            }}>Lokale Daten löschen und neu erzeugen</button>
             <h2 className="settings-heading">Meine Daten (Bestandsdaten-Auskunft)</h2>
             <div className="settings-actions">
               <button onClick={async () => { const r = await api.get("user/dataExport"); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(r.data, null, 2)], { type: "application/json" })); a.download = "bildkeller-export.json"; a.click(); }}>⬇ Als JSON herunterladen</button>
@@ -229,7 +256,7 @@ export default function Settings({ tab }: { tab: string }) {
                     <td>{c.isPublic ? "öffentlich" : "privat"}{c.isDefault ? ", Standard" : ""}</td>
                     <td>{c.itemCount} Beiträge</td>
                     <td>
-                      <button onClick={() => run(api.post("collections/edit", { collectionId: c.id, isPublic: c.isPublic ? "0" : "1" }), "Gespeichert.")}>{c.isPublic ? "privat machen" : "öffentlich machen"}</button>
+                      <button onClick={() => run(api.post("collections/edit", { collectionId: c.id, isPublic: c.isPublic ? "0" : "1" }).then(() => setCollections((current) => current.map((row) => row.id === c.id ? { ...row, isPublic: c.isPublic ? 0 : 1 } : row))), "Gespeichert.")}>{c.isPublic ? "privat machen" : "öffentlich machen"}</button>
                       {!c.isDefault && <button onClick={() => run(api.post("collections/delete", { collectionId: c.id }).then(() => api.get("collections/get").then((r) => setCollections(r.collections ?? []))), "Gelöscht.")}>löschen</button>}
                     </td>
                   </tr>
@@ -249,7 +276,7 @@ export default function Settings({ tab }: { tab: string }) {
             <h3>E-Mail-Benachrichtigungen</h3>
             <Radio name="enableEmailNotifications" value={String(s.enableEmailNotifications ?? false)} options={[["true", "E-Mail-Benachrichtigungen aktiviert"], ["false", "Deaktiviert"]]} onChange={(v) => set("enableEmailNotifications", v === "true")} />
             <h3>Zusammenfassungen</h3>
-            <Radio name="enableDailyDigest" value={String(s.enableDailyDigest ?? false)} options={[["true", "Tägliche Zusammenfassung"], ["false", "Wöchentliche Zusammenfassung"]]} onChange={(v) => { set("enableDailyDigest", v === "true"); set("enableWeeklyDigest", v !== "true"); }} />
+            <Radio name="enableDailyDigest" value={String(s.enableDailyDigest ?? false)} options={[["true", "Tägliche Zusammenfassung"], ["false", "Wöchentliche Zusammenfassung"]]} onChange={(v) => { save({ enableDailyDigest: v === "true", enableWeeklyDigest: v !== "true" }); }} />
             <h3>Push-Notifications</h3>
             <p className="dim">Push-Benachrichtigungen brauchen eine installierte App und sind auf diesem Board nicht verfügbar.</p>
           </>

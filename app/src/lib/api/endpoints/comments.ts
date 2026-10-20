@@ -88,7 +88,9 @@ register("comments.edit", async (ctx) => {
   const user = requireUser(ctx);
   const id = int(ctx.form.id, 0);
   const content = (ctx.form.content ?? "").trim();
-  if (!content) return fail("invalid");
+  if (!content || content.length > MAX_COMMENT) return fail("invalid");
+  const visible = await visibleComment(user, id);
+  if (!visible) return fail("not found");
   const c = (await db.select().from(schema.comments).where(eq(schema.comments.id, id)).limit(1))[0];
   if (!c) return fail("not found");
   if (c.userId !== user.userId) return fail("forbidden");

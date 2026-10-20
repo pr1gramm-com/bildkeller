@@ -7,6 +7,8 @@ import { assertNonce } from "@/lib/auth";
 import { userByName } from "@/lib/collections";
 import { limit } from "@/lib/limiter";
 import { MAX_MESSAGE } from "@/lib/visibility";
+import { itemVisible } from "@/lib/visibility";
+import { int } from "@/lib/params";
 import type { ApiCtx } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -117,15 +119,18 @@ const KINDS: Record<string, string[]> = {
 for (const [kind, types] of Object.entries(KINDS)) {
   register(`inbox.${kind}`, async (ctx) => {
     const user = me(ctx);
+    const before = int(ctx.query.get("before"), 0);
     const notes = await db
       .select()
       .from(schema.notifications)
-      .where(and(eq(schema.notifications.userId, user.userId), inArray(schema.notifications.type, types)))
+      .where(and(eq(schema.notifications.userId, user.userId), inArray(schema.notifications.type, types), before > 0 ? sql`${schema.notifications.id} < ${before}` : undefined))
       .orderBy(desc(schema.notifications.id))
-      .limit(50);
+      .limit(51);
+
+    const page = notes.slice(0, 50);
 
     const messages = await Promise.all(
-      notes.map(async (n) => {
+      page.map(async (n) => {
         if (n.type === "follow") {
           const f = (await db.select().from(schema.users).where(eq(schema.users.id, n.refId)).limit(1))[0];
           return { id: n.id, type: n.type, created: n.created, name: f?.name ?? "", read: n.read };
@@ -139,17 +144,17 @@ for (const [kind, types] of Object.entries(KINDS)) {
             .from(schema.comments)
             .innerJoin(schema.users, eq(schema.users.id, schema.comments.userId))
             .innerJoin(schema.items, eq(schema.items.id, schema.comments.itemId))
-            .where(eq(schema.comments.id, n.refId))
+            .where(and(eq(schema.comments.id, n.refId), eq(schema.comments.deleted, false), itemVisible(user)))
             .limit(1)
         )[0];
-        return { id: n.id, type: n.type, created: n.created, read: n.read, commentId: n.refId, ...c };
+        return c ? { id: n.id, type: n.type, created: n.created, read: n.read, commentId: n.refId, ...c } : null;
       }),
     );
     await db
       .update(schema.notifications)
       .set({ read: true })
-      .where(and(eq(schema.notifications.userId, user.userId), inArray(schema.notifications.type, types)));
-    return ok({ atEnd: true, messages });
+      .where(and(eq(schema.notifications.userId, user.userId), inArray(schema.notifications.id, page.map((n) => n.id))));
+    return ok({ atEnd: notes.length <= 50, before: page.at(-1)?.id ?? 0, messages: messages.filter((n) => n !== null) });
   });
 }
 
@@ -167,7 +172,7 @@ register("inbox.digests", async (ctx) => {
     })
     .from(schema.items)
     .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
-    .where(and(eq(schema.items.deleted, false), eq(schema.items.junk, false), gte(schema.items.created, since)))
+    .where(and(itemVisible(user), eq(schema.items.junk, false), gte(schema.items.created, since)))
     .orderBy(desc(sql`${schema.items.up} - ${schema.items.down}`))
     .limit(10);
   return ok({ digests: rows.map((r) => ({ ...r, score: r.up - r.down })) });
@@ -198,7 +203,7 @@ register("inbox.stalk", async (ctx) => {
       and(
         inArray(schema.comments.userId, followed.map((f) => f.id)),
         eq(schema.comments.deleted, false),
-        eq(schema.items.deleted, false),
+        itemVisible(user),
       ),
     )
     .orderBy(desc(schema.comments.id))

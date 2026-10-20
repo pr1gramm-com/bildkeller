@@ -53,6 +53,10 @@ beforeAll(async () => {
 });
 
 describe("write endpoints validate their target", () => {
+  it("cannot edit deleted comments and applies the comment limit to edits", async () => {
+    expect((await json(await post("/api/comments/edit", { id: String(deletedComment), content: "new" }, owner.token))).error).toBe("not found");
+    expect((await json(await post("/api/comments/edit", { id: String(sfwComment), content: "x".repeat(10001) }, owner.token))).error).toBe("invalid");
+  });
   it("cannot vote on an item the user may not see, nor on a deleted one", async () => {
     expect((await json(await post("/api/items/vote", { id: String(nsfwItem), up: "1" }, plain.token))).error).toBe("not found");
     expect((await json(await post("/api/items/vote", { id: String(deletedItem), up: "1" }, plain.token))).error).toBe("not found");
@@ -78,6 +82,36 @@ describe("write endpoints validate their target", () => {
 });
 
 describe("read endpoints do not leak hidden content", () => {
+  it("filters hidden items from notifications, highlights and followed comments", async () => {
+    await db.insert(schema.notifications).values([
+      { userId: plain.id, type: "comment", refId: nsfwComment, created: NOW() },
+      { userId: plain.id, type: "comment", refId: deletedComment, created: NOW() },
+      { userId: plain.id, type: "comment", refId: sfwComment, created: NOW() },
+    ]);
+    const notes = await json(await call("/api/inbox/comments", plain.token));
+    expect(notes.messages.map((n: { commentId: number }) => n.commentId)).toContain(sfwComment);
+    expect(notes.messages.map((n: { commentId: number }) => n.commentId)).not.toContain(nsfwComment);
+    expect(notes.messages.map((n: { commentId: number }) => n.commentId)).not.toContain(deletedComment);
+    expect((await json(await call("/api/inbox/digests", plain.token))).digests.map((i: { id: number }) => i.id)).not.toContain(nsfwItem);
+    await post("/api/profile/follow", { name: owner.name }, plain.token);
+    const followed = await json(await call("/api/inbox/stalk", plain.token));
+    expect(followed.messages.map((n: { id: number }) => n.id)).not.toContain(nsfwComment);
+    expect(followed.messages.map((n: { id: number }) => n.id)).not.toContain(deletedComment);
+  });
+
+  it("public collections remain readable by guests and filter item ratings", async () => {
+    const collection = await json(await call(`/api/collections/get?id=${colId}`));
+    expect(collection.error).toBeNull();
+    expect(collection.collections[0].items.map((i: { id: number }) => i.id)).toEqual([sfwItem]);
+  });
+
+  it("blocked tags are excluded from the account feed", async () => {
+    await post("/api/tags/add", { itemId: String(sfwItem), tags: "visibility-block-tag" }, owner.token);
+    await post("/api/profile/blockTag", { tag: "visibility-block-tag" }, plain.token);
+    const feed = await json(await call(`/api/items/get?user=${owner.name}`, plain.token));
+    expect(feed.items.map((i: { id: number }) => i.id)).not.toContain(sfwItem);
+    await post("/api/profile/unblockTag", { tag: "visibility-block-tag" }, plain.token);
+  });
   it("edit history needs a visible, non-deleted comment", async () => {
     expect((await json(await call(`/api/comments/getEditHistory?id=${nsfwComment}`))).error).toBe("not found");
     expect((await json(await call(`/api/comments/getEditHistory?id=${deletedComment}`, owner.token))).error).toBe("not found");

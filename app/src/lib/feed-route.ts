@@ -3,9 +3,10 @@ export type FeedName = "new" | "top" | "junk";
 export function feedRoute(feed: FeedName, segments: string[] = []) {
   if (segments.length > 2) return null;
   const last = segments.at(-1) ?? "";
-  const isItem = /^\d+$/.test(last);
+  const item = /^(\d+)(?::comment\d+)?$/.exec(last);
+  const isItem = item !== null;
   if (segments.length === 2 && !isItem) return null;
-  const id = isItem ? Number(last) : undefined;
+  const id = item ? Number(item[1]) : undefined;
   if (id !== undefined && (!Number.isSafeInteger(id) || id < 1)) return null;
   const tags = segments.length > (isItem ? 1 : 0) ? segments[0] : "";
   const base = `/${feed}${tags ? `/${encodeURIComponent(tags)}` : ""}`;
@@ -13,7 +14,7 @@ export function feedRoute(feed: FeedName, segments: string[] = []) {
 }
 
 export function itemIdFromPath(path: string): number | null {
-  const match = /^\/(?:item|new|top|junk)\/(?:[^/]+\/)?(\d+)$/.exec(path);
+  const match = /^\/(?:item|new|top|junk)\/(?:[^/]+\/)?(\d+)(?::comment\d+)?$/.exec(path);
   return match ? Number(match[1]) : null;
 }
 

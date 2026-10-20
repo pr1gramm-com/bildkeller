@@ -9,7 +9,7 @@ import { createSession } from "@/lib/auth";
 
 const HAR_COMMENT_KEYS = [
   "id", "parent", "content", "created", "editedAt", "editCount", "up", "down",
-  "confidence", "name", "mark", "blocked",
+  "confidence", "name", "mark", "blocked", "vote",
 ].sort();
 
 type ReqInit = { method?: string; body?: BodyInit; headers?: Record<string, string> };
@@ -61,7 +61,7 @@ describe("items.info", () => {
     const body = await json(await handle(req(`/api/items/info?itemId=${itemId}`), ["items", "info"]));
     expect(body.error).toBeNull();
     expect(Object.keys(body).sort()).toEqual(
-      ["tags", "comments", "views", "favorites", "ts", "rt", "qc", "cache", "error"].sort(),
+      ["tags", "comments", "views", "favorites", "collectionIds", "vote", "seen", "ts", "rt", "qc", "cache", "error"].sort(),
     );
     const comments = body.comments as Array<Record<string, unknown>>;
     expect(comments.length).toBe(1);

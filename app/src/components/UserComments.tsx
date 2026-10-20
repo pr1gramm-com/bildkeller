@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { api, ago, getMe, mediaUrl } from "@/lib/client/api";
+import { api, ago, mediaUrl } from "@/lib/client/api";
 
 type Cmt = { id: number; content: string; created: number; itemId: number; up: number; down: number; thumb?: string };
 
@@ -9,11 +9,13 @@ type Cmt = { id: number; content: string; created: number; itemId: number; up: n
 export default function UserComments({ name, likes }: { name: string; likes?: boolean }) {
   const [comments, setComments] = useState<Cmt[]>([]);
   const [error, setError] = useState("");
+  const [hasOlder, setHasOlder] = useState(false);
+  const [loading, setLoading] = useState(false);
   useEffect(() => {
     const path = likes ? "profile/commentlikes" : "profile/comments";
-    if (likes && !getMe()) { setError("Bitte einloggen."); return; }
-    api.get(path, likes ? {} : { name })
-      .then((r) => setComments(r.comments ?? []))
+    setError("");
+    api.get(path, { name })
+      .then((r) => { setComments(r.comments ?? []); setHasOlder(r.hasOlder ?? false); })
       .catch((e) => setError(e.message));
   }, [name, likes]);
 
@@ -31,10 +33,16 @@ export default function UserComments({ name, likes }: { name: string; likes?: bo
               <div className="comment-foot">
                 <span className="score">{c.up - c.down} Benis</span>
                 <span className="time">{ago(c.created)}</span>
-                <Link href={`/item/${c.itemId}`} className="hot">Beitrag {c.itemId}</Link>
+              <Link href={`/item/${c.itemId}:comment${c.id}`} className="hot">Beitrag {c.itemId}</Link>
               </div>
             </div>
           ))}
+          {hasOlder && <button disabled={loading} onClick={() => {
+            setLoading(true);
+            void api.get(likes ? "profile/commentlikes" : "profile/comments", { name, before: comments.at(-1)?.id ?? 0 }).then((r) => {
+              setComments((old) => [...old, ...(r.comments ?? [])]); setHasOlder(r.hasOlder ?? false);
+            }).catch((e) => setError(e.message)).finally(() => setLoading(false));
+          }}>Ältere Kommentare</button>}
         </div>
       </div>
     </>

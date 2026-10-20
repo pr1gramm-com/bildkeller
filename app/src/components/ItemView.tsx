@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import type { ApiItem } from "@/lib/api/endpoints/items";
 import { api, ago, useMe, isVideo, mediaUrl } from "@/lib/client/api";
@@ -8,6 +9,8 @@ import Comments, { type ApiComment } from "./Comments";
 import Icon from "./Icon";
 import TagBar, { type ApiTag } from "./TagBar";
 import VoteBox from "./VoteBox";
+import { usePreferences } from "@/lib/client/preferences";
+import { syncOnce } from "@/lib/client/votes";
 
 type Props = { id: number; item?: ApiItem; onPrev: () => void; onNext: () => void; onClose: () => void };
 
@@ -31,7 +34,15 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
   const [collections, setCollections] = useState<Array<{ id: number; name: string }>>([]);
   const [picker, setPicker] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [collectionIds, setCollectionIds] = useState<number[]>([]);
+  const [defaultCollectionId, setDefaultCollectionId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [itemVote, setItemVote] = useState<boolean | null | undefined>(undefined);
   const me = useMe();
+  const path = usePathname();
+  const preferences = usePreferences();
+  const actionFailed = (e: unknown) => setActionError(e instanceof Error ? e.message : "Fehler");
 
   const loadInfo = useCallback(async () => {
     const info = await api.get("items/info", { itemId: id });
@@ -39,7 +50,17 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
     setComments(info.comments);
     setViews(info.views);
     setFavorites(info.favorites ?? []);
+    setCollectionIds(info.collectionIds ?? []);
+    setItemVote(info.vote ?? null);
+    if (info.seen) window.dispatchEvent(new CustomEvent("bildkeller:seen", { detail: id }));
   }, [id]);
+
+  useEffect(() => {
+    const comment = /:comment(\d+)$/.exec(path);
+    if (!comment || comments.length === 0) return;
+    const frame = requestAnimationFrame(() => document.getElementById(`comment${comment[1]}`)?.scrollIntoView({ block: "start" }));
+    return () => cancelAnimationFrame(frame);
+  }, [path, comments]);
 
   useEffect(() => {
     setError("");
@@ -73,41 +94,56 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
 
   useEffect(() => {
     if (!me || !item) return;
-    api.get("collections/get").then((r) => setCollections((r.collections ?? []).map((c: { id: number; name: string }) => ({ id: c.id, name: c.name })))).catch(() => undefined);
+    api.get("collections/get").then((r) => {
+      setCollections((r.collections ?? []).map((c: { id: number; name: string }) => ({ id: c.id, name: c.name })));
+      setDefaultCollectionId((r.collections ?? []).find((c: { isDefault: number }) => c.isDefault === 1)?.id ?? null);
+    }).catch(actionFailed);
     api.get("profile/info", { name: item.user, flags: 31 }).then((r) => setFollowing(Boolean(r.following))).catch(() => undefined);
   }, [me, item]);
 
   async function report() {
     const reason = window.prompt("Grund der Meldung?");
-    if (reason) await api.post("contact/report", { itemId: id, reason }).catch(() => undefined);
+    if (reason) await api.post("contact/report", { itemId: id, reason }).catch(actionFailed);
   }
 
   async function favorite() {
-    const { collections } = await api.get("collections/get");
-    const fav = collections.find((c: { isDefault: number }) => c.isDefault === 1);
-    if (fav) await api.post("collections/add", { collectionId: fav.id, itemId: id }).catch(() => undefined);
+    if (defaultCollectionId !== null) await collect(defaultCollectionId);
   }
 
   async function collect(collectionId: number) {
-    setPicker(false);
-    await api.post("collections/add", { collectionId, itemId: id }).catch(() => undefined);
+    if (saving) return;
+    setSaving(true);
+    setActionError("");
+    const included = collectionIds.includes(collectionId);
+    try {
+      await api.post(included ? "collections/remove" : "collections/add", { collectionId, itemId: id });
+      setCollectionIds((ids) => included ? ids.filter((i) => i !== collectionId) : [...ids, collectionId]);
+      if (!included && collectionId === defaultCollectionId && preferences.favUpvote) await syncOnce(true);
+    } catch (e) { actionFailed(e); }
+    finally { setSaving(false); }
   }
 
   async function stalk() {
     if (!item) return;
-    await api.post(following ? "profile/unfollow" : "profile/follow", { name: item.user }).catch(() => undefined);
-    setFollowing(!following);
+    try {
+      await api.post(following ? "profile/unfollow" : "profile/follow", { name: item.user });
+      setFollowing(!following);
+    } catch (e) { actionFailed(e); }
   }
 
   async function block() {
     if (!item) return;
-    await api.post("profile/block", { name: item.user }).catch(() => undefined);
+    try {
+      await api.post("profile/block", { name: item.user });
+      window.dispatchEvent(new Event("bildkeller:blocks"));
+      onClose();
+    } catch (e) { actionFailed(e); }
   }
 
   async function remove() {
     if (!item || !window.confirm("Diesen Beitrag wirklich löschen?")) return;
-    await api.post("items/delete", { id: item.id }).catch(() => undefined);
-    onClose();
+    try { await api.post("items/delete", { id: item.id }); onClose(); }
+    catch (e) { actionFailed(e); }
   }
 
   async function share() {
@@ -137,15 +173,15 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
       </div>
       <div className="item-info">
         <div className="item-actions">
-          <VoteBox kind="item" id={item.id} up={item.up} down={item.down} />
+          {itemVote !== undefined && <VoteBox kind="item" id={item.id} up={item.up} down={item.down} initialVote={itemVote} />}
           {me && (
             <span className="item-fav">
-              <button className="iconbtn vote-fav" onClick={favorite} title="Favorisieren"><Icon name="heart" size={24} /></button>
+              <button className={`iconbtn vote-fav${defaultCollectionId !== null && collectionIds.includes(defaultCollectionId) ? " selected" : ""}`} onClick={favorite} title="Favorisieren" aria-label="Favorisieren" aria-pressed={defaultCollectionId !== null && collectionIds.includes(defaultCollectionId)} disabled={saving || defaultCollectionId === null}><Icon name="heart" size={24} /></button>
               <button className="iconbtn vote-collect" onClick={() => setPicker((v) => !v)} title="In Sammlung speichern"><Icon name="star" size={20} /></button>
               {picker && (
                 <span className="collect-menu">
                   {collections.map((c) => (
-                    <button key={c.id} className="link hot" onClick={() => collect(c.id)}>{c.name}</button>
+                    <button key={c.id} className="link hot" aria-pressed={collectionIds.includes(c.id)} disabled={saving} onClick={() => collect(c.id)}>{collectionIds.includes(c.id) ? "✓ " : ""}{c.name}</button>
                   ))}
                 </span>
               )}
@@ -174,12 +210,13 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
           </span>
           {item.source && <a href={item.source} rel="noreferrer noopener" target="_blank" className="src">{host(item.source)}</a>}
           {me && <span className="bracket">[<button className="link hot" onClick={report}>melden</button>]</span>}
-          {me && !own && <span className="bracket">[<button className="link hot" onClick={block}>{item.user} blockieren</button>]</span>}
+          {me && !own && preferences.showBlockActions && <span className="bracket">[<button className="link hot" onClick={block}>{item.user} blockieren</button>]</span>}
           {own && <span className="bracket">[<button className="link hot" onClick={remove}>löschen</button>]</span>}
         </div>
-        <TagBar itemId={item.id} tags={tags} onChange={loadInfo} />
+        {actionError && <p className="err" role="alert">{actionError}</p>}
+        <TagBar itemId={item.id} tags={tags} onChange={() => { void loadInfo().catch(actionFailed); }} />
       </div>
-      <Comments itemId={item.id} op={item.user} comments={comments} favorites={favorites} onChange={loadInfo} />
+      <Comments itemId={item.id} op={item.user} comments={comments} favorites={favorites} onChange={() => { void loadInfo().catch(actionFailed); }} />
     </div>
   );
 }

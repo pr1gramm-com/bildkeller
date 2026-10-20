@@ -6,6 +6,7 @@ import type { ApiItem } from "@/lib/api/endpoints/items";
 import { api, isVideo, mediaUrl } from "@/lib/client/api";
 import { useFlags } from "@/lib/client/flags";
 import { itemHref, itemIdFromPath } from "@/lib/feed-route";
+import { usePreferences } from "@/lib/client/preferences";
 import Icon from "./Icon";
 import ItemView from "./ItemView";
 
@@ -22,15 +23,19 @@ type Props = {
   chronicle?: boolean;
   /** Deep link: the first page of the stream starts at this item id. */
   startAt?: number;
+  history?: boolean;
 };
 
 /** Thumbnail grid; a clicked post opens inline below its row (like pr0gramm.com), the URL follows via the History API. */
-export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt }: Props) {
+export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt, history = false }: Props) {
   const [items, setItems] = useState<ApiItem[]>([]);
   const [atEnd, setAtEnd] = useState(false);
   const [error, setError] = useState("");
   const [cols, setCols] = useState(1);
   const flags = useFlags();
+  const preferences = usePreferences();
+  const [hovered, setHovered] = useState<number | null>(null);
+  const [seen, setSeen] = useState<number[]>([]);
   const path = usePathname();
   const router = useRouter();
   const loading = useRef(false);
@@ -49,8 +54,9 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
       loading.current = true;
       const mine = gen.current;
       try {
-        const params: Record<string, string | number> = { flags: flags ?? 1, promoted, show_junk: chronicle ? 1 : 0 };
+        const params: Record<string, string | number> = { flags: flags ?? 1, promoted, show_junk: chronicle || (!promoted && !preferences.junkSeparation) ? 1 : 0 };
         if (junk) params.junk = 1;
+        if (history) params.history = 1;
         if (older) params.older = older;
         else if (startAt) params.id = startAt;
         if (tags) params.tags = tags;
@@ -60,13 +66,14 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
         if (mine !== gen.current) return;
         setItems((prev) => (older ? [...prev, ...res.items] : res.items));
         setAtEnd(res.atEnd);
+        setSeen((previous) => older ? [...new Set([...previous, ...(res.seen ?? [])])] : res.seen ?? []);
       } catch (e) {
         if (mine === gen.current) setError(e instanceof Error ? e.message : "Fehler");
       } finally {
         if (mine === gen.current) loading.current = false;
       }
     },
-    [flags, promoted, junk, tags, user, users, chronicle, startAt],
+    [flags, promoted, junk, tags, user, users, chronicle, startAt, history, preferences.junkSeparation, preferences.markSeenItems],
   );
 
   useEffect(() => {
@@ -77,6 +84,28 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
     setAtEnd(false);
     setError("");
     void load();
+  }, [load]);
+
+  useEffect(() => {
+    const mark = (e: Event) => {
+      const id = (e as CustomEvent<number>).detail;
+      setSeen((previous) => previous.includes(id) ? previous : [...previous, id]);
+    };
+    const reset = () => setSeen([]);
+    window.addEventListener("bildkeller:seen", mark);
+    window.addEventListener("bildkeller:seen-reset", reset);
+    return () => { window.removeEventListener("bildkeller:seen", mark); window.removeEventListener("bildkeller:seen-reset", reset); };
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => {
+      gen.current += 1;
+      loading.current = false;
+      setError("");
+      void load();
+    };
+    window.addEventListener("bildkeller:blocks", refresh);
+    return () => window.removeEventListener("bildkeller:blocks", refresh);
   }, [load]);
 
   useEffect(() => {
@@ -145,9 +174,11 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
       key={i.id}
       href={itemHref(base, i.id)}
       prefetch={false}
-      className={`tile${i.id === openId ? " on" : ""}`}
+      className={`tile${i.id === openId ? " on" : ""}${preferences.markSeenItems && seen.includes(i.id) ? " seen" : ""}`}
       aria-label={`Beitrag ${i.id}`}
       aria-expanded={i.id === openId}
+      onMouseEnter={() => { if (preferences.showVideoPreview && isVideo(i.image)) setHovered(i.id); }}
+      onMouseLeave={() => setHovered(null)}
       onClick={(e) => {
         if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
         e.preventDefault();
@@ -156,7 +187,8 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
       }}
     >
       <img src={mediaUrl(i.thumb)} alt="" loading="lazy" />
-      {i.flags !== 1 && <span className={`flag f${i.flags}`} />}
+      {hovered === i.id && <video src={mediaUrl(i.image)} autoPlay muted loop playsInline className="tile-preview" />}
+      {preferences.showThumbnailFlags && i.flags !== 1 && <span className={`flag f${i.flags}`} />}
       {isVideo(i.image) && <span className="vid"><Icon name="play" size={14} /></span>}
     </Link>,
     ...(n === insertAfter ? [viewer] : []),

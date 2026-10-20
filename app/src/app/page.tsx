@@ -1,2 +1,2 @@
-import Feed from "@/components/Feed";
-export default function Home() { return <Feed promoted={1} base="/top" />; }
+import HomeFeed from "@/components/HomeFeed";
+export default function Home() { return <HomeFeed />; }

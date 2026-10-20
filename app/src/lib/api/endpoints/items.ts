@@ -19,6 +19,8 @@ import { parseTagQuery, type Term } from "@/lib/tagquery";
 import { logEvent } from "@/lib/sync";
 import { visibleComment, visibleItem } from "@/lib/visibility";
 import { addTag } from "@/lib/tags";
+import { changeSettings, getSettings } from "@/lib/settings";
+import { itemHistory } from "@/lib/item-history";
 
 export type ApiItem = {
   id: number;
@@ -101,6 +103,10 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     ? ctx.query.get("users")!.split(",").map((u) => u.trim()).filter(Boolean)
     : [];
   const singleUser = (ctx.query.get("user") ?? "").trim();
+  const preferences = user ? await getSettings(user.userId) : null;
+  const history = itemHistory(preferences?.seenItems ?? "[]");
+  const historyFeed = ctx.query.get("history") === "1";
+  if (historyFeed && !user) return fail("not logged in");
 
   const hasTag = (tag: string) =>
     sql`exists (select 1 from item_tags it join tags t on t.id = it.tag_id where it.item_id = ${schema.items.id} and t.tag = ${tag})`;
@@ -158,7 +164,10 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     if (!user?.mod && !user?.admin) conds.push(eq(schema.items.userId, user?.userId ?? 0));
   }
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
-  if (older > 0 && promoted === 1) {
+  if (historyFeed) {
+    const start = idParam ? history.indexOf(idParam) : older ? history.indexOf(older) + 1 : 0;
+    conds.push(inArray(schema.items.id, start < 0 ? [] : history.slice(start)));
+  } else if (older > 0 && promoted === 1) {
     // Popular feed is ordered by (promoted, id): page by that pair, not by id alone.
     const cursor = idParam || older;
     const cur = (await db.select({ p: schema.items.promoted }).from(schema.items).where(eq(schema.items.id, cursor)).limit(1))[0];
@@ -175,6 +184,10 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   }
   const blocked = await blockedUserIds(user);
   if (blocked.length > 0) conds.push(notInArray(schema.items.userId, blocked));
+  if (user) conds.push(sql`not exists (
+    select 1 from item_tags it join blocked_tags bt on bt.tag_id = it.tag_id
+    where it.item_id = ${schema.items.id} and bt.user_id = ${user.userId}
+  )`);
 
   const rows = await db
     .select({
@@ -186,7 +199,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
     .where(and(...conds))
     .orderBy(
-      ...(promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
+      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
     )
     .limit(pageSize + 1);
 
@@ -195,6 +208,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     items: page.map(toItem),
     atStart: older === 0,
     atEnd: rows.length <= pageSize,
+    seen: preferences?.markSeenItems ? page.map((r) => r.item.id).filter((id) => history.includes(id)) : [],
   });
 }
 
@@ -213,16 +227,18 @@ export async function voteTarget(
   id: number,
   up: boolean,
   userId: number,
-): Promise<void> {
+  toggle = true,
+): Promise<boolean> {
   const idCol = table === "items" ? schema.votes.itemId : schema.votes.commentId;
   const target = table === "items" ? schema.items : schema.comments;
   const upCol = table === "items" ? schema.items.up : schema.comments.up;
   const downCol = table === "items" ? schema.items.down : schema.comments.down;
 
   // Serialize per (user, target): the vote row and the denormalized counters change atomically.
-  await db.transaction(async (tx) => {
+  return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`vote:${table}:${userId}:${id}`}))`);
     const existing = (await tx.select().from(schema.votes).where(and(eq(schema.votes.userId, userId), eq(idCol, id))).limit(1))[0];
+    if (!toggle && existing?.up === up) return false;
     if (!existing) {
       await tx.insert(schema.votes).values(
         table === "items"
@@ -240,6 +256,7 @@ export async function voteTarget(
         .set(up ? { up: sql`${upCol} + 1`, down: sql`greatest(${downCol} - 1, 0)` } : { down: sql`${downCol} + 1`, up: sql`greatest(${upCol} - 1, 0)` })
         .where(eq(target.id, id));
     }
+    return true;
   });
 }
 
@@ -254,6 +271,10 @@ export async function itemsInfo(ctx: ApiCtx) {
   const row = rows[0];
   if (!row || (row.item.flags & effectiveFlags(ctx.user, 31)) === 0) {
     return fail("not found");
+  }
+  const preferences = ctx.user ? await getSettings(ctx.user.userId) : null;
+  if (ctx.user && preferences?.enableItemHistory) {
+    await changeSettings(ctx.user.userId, (current) => ({ ...current, seenItems: JSON.stringify([id, ...itemHistory(current.seenItems).filter((seen) => seen !== id)].slice(0, 1000)) }));
   }
 
   // views: one row per day, incremented per info request
@@ -289,6 +310,12 @@ export async function itemsInfo(ctx: ApiCtx) {
     .orderBy(asc(schema.comments.id));
 
   const blocked = new Set(await blockedUserIds(ctx.user));
+  const votes = ctx.user ? await db.select({ itemId: schema.votes.itemId, commentId: schema.votes.commentId, up: schema.votes.up })
+    .from(schema.votes).where(and(eq(schema.votes.userId, ctx.user.userId), or(
+      eq(schema.votes.itemId, id),
+      inArray(schema.votes.commentId, commentRows.map((r) => r.comment.id)),
+    ))) : [];
+  const commentVotes = new Map(votes.filter((v) => v.commentId !== null).map((v) => [v.commentId, v.up]));
   const favorites = ctx.user
     ? await db
         .select({ commentId: schema.commentFavorites.commentId })
@@ -296,6 +323,12 @@ export async function itemsInfo(ctx: ApiCtx) {
         .where(eq(schema.commentFavorites.userId, ctx.user.userId))
         .then((rows) => rows.map((r) => r.commentId))
     : [];
+  const collectionIds = ctx.user ? await db
+    .select({ id: schema.collections.id })
+    .from(schema.collectionItems)
+    .innerJoin(schema.collections, eq(schema.collections.id, schema.collectionItems.collectionId))
+    .where(and(eq(schema.collectionItems.itemId, id), eq(schema.collections.userId, ctx.user.userId)))
+    .then((rows) => rows.map((r) => r.id)) : [];
   return ok({
     tags: tagRows.map((t) => ({ id: t.id, tag: t.tag, confidence: wilson(t.up, t.down) })),
     comments: commentRows.map((c) => ({
@@ -311,9 +344,13 @@ export async function itemsInfo(ctx: ApiCtx) {
       name: c.userName,
       mark: c.userMark,
       blocked: blocked.has(c.comment.userId),
+      vote: commentVotes.get(c.comment.id) ?? null,
     })),
     views: Number(viewsRows[0]?.total ?? 0),
     favorites,
+    collectionIds,
+    vote: votes.find((v) => v.itemId === id)?.up ?? null,
+    seen: preferences?.enableItemHistory ?? false,
   });
 }
 

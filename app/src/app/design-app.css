@@ -425,10 +425,11 @@ html[data-design="app"] #design-toggle .dt-app { color: #fff; }
     height: auto;
     z-index: 90;
     transform: translateX(-100%);
+    visibility: hidden;
     transition: transform .2s ease;
     box-shadow: 0 0 40px #000c;
   }
-  html.side-open[data-design="app"] #app-side { transform: none; }
+  html.side-open[data-design="app"] #app-side { transform: none; visibility: visible; }
   html.side-open[data-design="app"] #app-side-backdrop {
     display: block;
     border-radius: 0;

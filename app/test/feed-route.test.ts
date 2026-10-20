@@ -18,6 +18,8 @@ describe("reference feed URLs", () => {
     expect(itemIdFromPath("/item/42")).toBe(42);
     expect(itemIdFromPath("/user/42")).toBeNull();
     expect(itemHref("/stalk", 42)).toBe("/item/42");
+    expect(feedRoute("top", ["42:comment123"])?.startAt).toBe(42);
+    expect(itemIdFromPath("/top/tag/42:comment123")).toBe(42);
   });
   it("rejects malformed route shapes and unsafe IDs", () => {
     expect(feedRoute("top", ["tag", "other"])).toBeNull();

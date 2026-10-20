@@ -5,6 +5,7 @@ import AppSidebar from "@/components/AppSidebar";
 import DesignToggle from "@/components/DesignToggle";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
+import SitePreferences from "@/components/SitePreferences";
 
 export const metadata = {
   title: "pr1gramm",
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="de" data-design="classic" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: DESIGN_BOOTSTRAP }} />
+        <SitePreferences />
         <div id="page">
           <Header />
           <AppNav />

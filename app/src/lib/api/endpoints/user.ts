@@ -152,3 +152,14 @@ register("user.sitesettings", async (ctx) => {
   assertNonce(ctx, ctx.user);
   return ok({ settings: await updateSettings(ctx.user.userId, ctx.form) });
 });
+
+register("user.settings", async (ctx) => {
+  if (!ctx.user) return fail("not logged in");
+  return ok({ settings: await getSettings(ctx.user.userId) });
+});
+
+register("user.clearHistory", async (ctx) => {
+  if (!ctx.user) return fail("not logged in");
+  assertNonce(ctx, ctx.user);
+  return ok({ settings: await updateSettings(ctx.user.userId, { seenItems: "[]" }) });
+});
