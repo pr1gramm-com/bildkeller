@@ -3,6 +3,8 @@
 Ziel: pr0.app-Look als alternatives Design, umschaltbar über einen Slider unten rechts.
 Das klassische pr0gramm.com-Design bleibt unverändert erhalten.
 
+Stand: 2026-10-20 · implementiert und im Browser (ego lite) gegen http://localhost:3100 verifiziert.
+
 ## Analyse pr0.app (ego lite, 2026-10-20)
 
 | Aspekt | Wert |
@@ -59,4 +61,14 @@ html[data-design="app"]      → pr0.app-Look (design-app.css)
 
 - Keine neuen Backend-Endpunkte.
 - Kein Umbau der klassischen Styles (nur `display:contents`-Wrapper).
-- pr0.app-Features ohne Gegenstück in unserem Board (pr0TV, Gamekeys, Kalender) → kein Link.
+- pr0.app-Features ohne Gegenstück in unserem Board (pr0TV, Gamekeys, Kalender-Events) → kein Link.
+
+## Abweichungen von pr0.app (bewusst)
+
+| Punkt | pr0.app | Bildkeller | Warum |
+|---|---|---|---|
+| Beitrag öffnen | eigene Route `/top/<id>`, Beitrag oben | Beitrag öffnet inline im Grid (oben in der App-Design-Spalte) | Inline-Öffnen ist bestehendes App-Verhalten (Parity-Plan) |
+| Sidebar-Nav | Abos, Best of, Kontrovers, Zufall, pr0TV, Kalender, Kontakte, Gamekeys | Abos, Best of, Kalender, Meine Uploads, Einstellungen | Nur Links auf existierende Routen |
+| Lesezeichen | gespeicherte Suchen/Feeds | einzelne gemerkte Beiträge | Wir haben Item-Bookmarks, keine gespeicherten Suchen |
+| Item-Aktionen | Stelzen, Kommentar, Glocke, Benachrichtigen | Stelzen, Kommentar, Glocke | Unsere API hat keinen Kommentar-/Benachrichtigungs-Counter am Item |
+| Konto | Avatar + Tabs + Badge-Raster | Name, Kennzahlen, Tabs | Kein Avatar- und Badge-System vorhanden |
