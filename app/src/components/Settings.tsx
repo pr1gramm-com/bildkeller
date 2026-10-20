@@ -194,7 +194,11 @@ export default function Settings({ tab }: { tab: string }) {
             <div className="row">
               <input type="password" placeholder="Passwort" value={selfban.password} onChange={(e) => setSelfban({ ...selfban, password: e.target.value })} />
               <input type="number" min={1} max={180} placeholder="Tage" value={selfban.days} onChange={(e) => setSelfban({ ...selfban, days: e.target.value })} />
-              <button onClick={() => run(api.post("user/selfban", { password: selfban.password, days: selfban.days }), "Du bist für die angegebene Zeit gesperrt.")}>Sperren</button>
+              <button onClick={() => {
+                if (window.confirm(`Dein Konto für ${selfban.days} Tage sperren? Die Sperre kann nicht vorzeitig aufgehoben werden.`)) {
+                  void api.post("user/selfban", { password: selfban.password, days: selfban.days }).then(() => window.location.assign("/")).catch((e) => setMsg(e.message));
+                }
+              }}>Sperren</button>
             </div>
             <h2 className="settings-heading">E-Mail Adresse ändern</h2>
             <div className="row">

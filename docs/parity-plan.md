@@ -157,3 +157,20 @@ Remote-Typecheck, **175/175 Tests in 27 Dateien**, Build und Review bestanden.
 Zwei-Konten-Browserablauf: Admin erstellt öffentliche Sammlung und fügt Beitrag hinzu;
 Alice abonniert, öffnet Beitrag, lädt neu, schließt und entfolgt wieder. Classic über
 agent-browser ohne Runtimefehler; App über ego-lite zusätzlich bei 390×844 ohne Überlauf.
+
+## Siebte Korrektureinheit
+
+- Selbstsperren markieren das Profil und sperren tatsächlich den Zugang bis zum
+  Ablauf. Passwort und 1–180 ganze Tage werden geprüft; alle Sitzungen enden atomar.
+- Postfachbereiche und Empfänger besitzen getrennte Komponenteninstanzen, damit
+  alte Nachrichten und Entwürfe nicht unter einem anderen Empfänger weiterlaufen.
+- Antwort-, Erwähnungs- und Follow-Benachrichtigungen respektieren Empfängerblockaden.
+  Listen und Ungelesen-Zähler verwenden dieselbe aktuelle Sichtbarkeitsprüfung.
+  Vorhandene blockierte DMs bleiben lesbar, erhöhen aber keine Ungelesen-Zähler.
+
+Remote-Typecheck, **181/181 Tests in 29 Dateien**, Build und Sicherheitsreview bestanden.
+Browser: Wegwerfkonto selbst gesperrt, Sitzung beendet, erneuter Login abgewiesen.
+Empfängerwechsel trennt Nachrichten und Entwürfe; simulierter Versandfehler erhält
+Text. Öffnen der Kommentaransicht löst keinen privaten Nachrichtenabruf aus.
+Ego bestätigt an zwei QA-Konten: Blockieren verbirgt Kommentar-/Follow-Hinweise und
+Zähler; Entblocken stellt die noch ungelesenen Hinweise wieder her.

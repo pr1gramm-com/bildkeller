@@ -6,6 +6,7 @@ import { register } from "@/lib/api/router";
 import { benis } from "@/lib/benis";
 import { clientIp, limit } from "@/lib/limiter";
 import { readLog } from "@/lib/sync";
+import { notificationVisible } from "@/lib/notifications";
 import { getSettings, updateSettings } from "@/lib/settings";
 import {
   assertNonce,
@@ -110,7 +111,8 @@ register("user.info", async (ctx) => {
 
 register("user.sync", async (ctx) => {
   if (!ctx.user) return fail("not logged in");
-  const userId = ctx.user.userId;
+  const user = ctx.user;
+  const userId = user.userId;
   const offset = int(ctx.query.get("offset"), 0);
   const limit = int(ctx.query.get("limit"), 1000);
 
@@ -118,7 +120,7 @@ register("user.sync", async (ctx) => {
     db
       .select({ c: sql<number>`count(*)::int` })
       .from(schema.notifications)
-      .where(and(eq(schema.notifications.userId, userId), eq(schema.notifications.type, type), eq(schema.notifications.read, false)))
+      .where(and(eq(schema.notifications.userId, userId), eq(schema.notifications.type, type), eq(schema.notifications.read, false), notificationVisible(user)))
       .then((r) => Number(r[0].c));
   const [mentions, comments, follows, messages, notificationsTotal, score, settings, log] = await Promise.all([
     unread("mention"),
@@ -127,12 +129,12 @@ register("user.sync", async (ctx) => {
     db
       .select({ c: sql<number>`count(*)::int` })
       .from(schema.messages)
-      .where(and(eq(schema.messages.toId, userId), eq(schema.messages.read, false)))
+      .where(and(eq(schema.messages.toId, userId), eq(schema.messages.read, false), sql`not exists (select 1 from blocks b where b.user_id = ${userId} and b.blocked_user_id = ${schema.messages.fromId})`))
       .then((r) => Number(r[0].c)),
     db
       .select({ c: sql<number>`count(*)::int` })
       .from(schema.notifications)
-      .where(and(eq(schema.notifications.userId, userId), eq(schema.notifications.read, false)))
+      .where(and(eq(schema.notifications.userId, userId), eq(schema.notifications.read, false), notificationVisible(user)))
       .then((r) => Number(r[0].c)),
     benis(userId),
     getSettings(userId),

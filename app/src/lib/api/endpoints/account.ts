@@ -135,14 +135,16 @@ register("user.changeemail", async (ctx) => {
 register("user.selfban", async (ctx) => {
   const user = me(ctx);
   const days = Number(ctx.form.days ?? 0);
-  if (!Number.isFinite(days) || days <= 0 || days > 180) return fail("invalid");
+  if (!Number.isInteger(days) || days < 1 || days > 180) return fail("invalid");
   const row = (await db.select().from(schema.users).where(eq(schema.users.id, user.userId)).limit(1))[0];
   if (!row || !(await verifyPassword(ctx.form.password ?? "", row.passwordHash))) return fail("invalid credentials");
-  await db
-    .update(schema.users)
-    .set({ inactiveUntil: now() + Math.round(days * 86400) })
-    .where(eq(schema.users.id, user.userId));
-  return ok({ until: now() + Math.round(days * 86400) });
+  const until = now() + days * 86400;
+  await db.transaction(async (tx) => {
+    await tx.update(schema.users).set({ inactiveUntil: until }).where(eq(schema.users.id, user.userId));
+    await tx.delete(schema.sessions).where(eq(schema.sessions.userId, user.userId));
+  });
+  ctx.outCookies.push({ name: "me", value: "", maxAge: 0 });
+  return ok({ until });
 });
 
 register("user.invitelist", async (ctx) => {

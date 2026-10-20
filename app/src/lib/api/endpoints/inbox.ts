@@ -9,6 +9,7 @@ import { limit } from "@/lib/limiter";
 import { MAX_MESSAGE } from "@/lib/visibility";
 import { itemVisible } from "@/lib/visibility";
 import { int } from "@/lib/params";
+import { notificationVisible } from "@/lib/notifications";
 import type { ApiCtx } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -54,7 +55,7 @@ register("inbox.conversations", async (ctx) => {
         mark: u.mark,
         name: u.name,
         lastMessage: last.created,
-        unreadCount: r.unread,
+        unreadCount: blocked.has(u.id) ? 0 : r.unread,
         blocked: blocked.has(u.id) ? 1 : 0,
         canReceiveMessages: 1,
         archived: 0,
@@ -123,7 +124,7 @@ for (const [kind, types] of Object.entries(KINDS)) {
     const notes = await db
       .select()
       .from(schema.notifications)
-      .where(and(eq(schema.notifications.userId, user.userId), inArray(schema.notifications.type, types), before > 0 ? sql`${schema.notifications.id} < ${before}` : undefined))
+      .where(and(eq(schema.notifications.userId, user.userId), inArray(schema.notifications.type, types), notificationVisible(user), before > 0 ? sql`${schema.notifications.id} < ${before}` : undefined))
       .orderBy(desc(schema.notifications.id))
       .limit(51);
 

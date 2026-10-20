@@ -4,5 +4,6 @@ const TABS = ["all", "comments", "notifications", "digests", "follows", "message
 
 export default async function InboxTab({ params }: { params: Promise<{ tab: string }> }) {
   const { tab } = await params;
-  return <Inbox tab={TABS.includes(tab) ? tab : "messages"} />;
+  const view = TABS.includes(tab) ? tab : "messages";
+  return <Inbox key={view} tab={view} />;
 }

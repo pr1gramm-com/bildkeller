@@ -12,6 +12,7 @@ import { itemVisible } from "@/lib/visibility";
 import { userStatus } from "@/lib/status";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 import { getSettings } from "@/lib/settings";
+import { notify } from "@/lib/notifications";
 import { avatarPath } from "@/lib/avatar-path";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -222,7 +223,7 @@ async function setFollow(ctx: ApiCtx, on: boolean) {
       .onConflictDoNothing()
       .returning();
     if (res.length > 0) {
-      await db.insert(schema.notifications).values({ userId: target.id, type: "follow", refId: me.userId, created: now() });
+      await notify(target.id, "follow", me.userId, me.userId);
     }
   } else {
     await db

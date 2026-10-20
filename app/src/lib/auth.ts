@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/envelope";
-import { and, eq, isNull, or, gt } from "drizzle-orm";
+import { and, eq, or, gt, sql } from "drizzle-orm";
 import { hash, verify } from "@node-rs/argon2";
 import { randomBytes } from "node:crypto";
 import type { NextRequest } from "next/server";
@@ -28,12 +28,15 @@ export function encodeMeCookie(map: MeMap): string {
 export async function hasActiveBan(userId: number): Promise<boolean> {
   const now = Math.floor(Date.now() / 1000);
   const rows = await db
-    .select({ id: schema.bans.id })
-    .from(schema.bans)
+    .select({ id: schema.users.id })
+    .from(schema.users)
     .where(
       and(
-        eq(schema.bans.userId, userId),
-        or(isNull(schema.bans.until), gt(schema.bans.until, now)),
+        eq(schema.users.id, userId),
+        or(gt(schema.users.inactiveUntil, now), sql`exists (
+          select 1 from ${schema.bans} where ${schema.bans.userId} = ${schema.users.id}
+          and (${schema.bans.until} is null or ${schema.bans.until} > ${now})
+        )`),
       ),
     )
     .limit(1);

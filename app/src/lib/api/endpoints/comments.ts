@@ -8,6 +8,7 @@ import { wilson } from "@/lib/wilson";
 import { int } from "@/lib/params";
 import { limit } from "@/lib/limiter";
 import { MAX_COMMENT, visibleComment, visibleItem } from "@/lib/visibility";
+import { notify } from "@/lib/notifications";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -16,11 +17,6 @@ function requireUser(ctx: ApiCtx): SessionUser {
   if (!ctx.user) throw new ApiError("not logged in");
   assertNonce(ctx, ctx.user);
   return ctx.user;
-}
-
-async function notify(userId: number, type: "mention" | "comment", refId: number, actorId: number) {
-  if (userId === actorId) return;
-  await db.insert(schema.notifications).values({ userId, type, refId, created: now() });
 }
 
 register("comments.post", async (ctx) => {
