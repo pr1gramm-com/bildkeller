@@ -2,8 +2,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { api, getMe } from "@/lib/client/api";
+import { api, useMe } from "@/lib/client/api";
 import Icon from "./Icon";
+import { useSavedSearches } from "@/lib/client/bookmarks";
+import { savedSearchHref } from "@/lib/saved-searches";
 
 const REPO = "https://github.com/pr1gramm-com/bildkeller";
 
@@ -13,21 +15,16 @@ const TABS = [
   { href: "/junk", label: "müll" },
 ];
 
-type Bookmark = { itemId: number; created: number };
 type Collection = { id: number; name: string; isDefault: number; itemCount: number };
 
 /** pr0.app sidebar: feed tabs, navigation, saved posts, collections and the footer links. */
 export default function AppSidebar() {
   const path = usePathname();
-  const [me, setMe] = useState<ReturnType<typeof getMe>>(null);
-  const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
+  const me = useMe();
+  const { searches, error } = useSavedSearches();
   const [collections, setCollections] = useState<Collection[]>([]);
 
-  // The session lives in a cookie, so it is only known after hydration.
-  useEffect(() => setMe(getMe()), []);
-
   const load = useCallback(() => {
-    api.get("bookmarks.get").then((r) => setBookmarks(r.bookmarks ?? [])).catch(() => undefined);
     api.get("collections/get").then((r) => setCollections(r.collections ?? [])).catch(() => undefined);
   }, []);
 
@@ -44,17 +41,19 @@ export default function AppSidebar() {
 
   const nav = [
     { href: "/stalk", label: "Abos", icon: "rss" as const },
-    { href: "/top", label: "Best of", icon: "star" as const },
+    { href: "/top/!%20s%3A600", label: "Best of", icon: "star" as const },
     { href: "/calendar", label: "Kalender", icon: "calendar" as const },
     ...(me ? [{ href: `/user/${me.n}/uploads`, label: "Meine Uploads", icon: "user" as const }] : []),
     ...(me ? [{ href: "/settings", label: "Einstellungen", icon: "settings" as const }] : []),
   ];
 
   return (
-    <aside id="app-side">
+    <aside id="app-side" onClick={(e) => {
+      if ((e.target as HTMLElement).closest("a")) document.documentElement.classList.remove("side-open");
+    }}>
       <div className="side-tabs" role="tablist">
         {TABS.map((t) => (
-          <Link key={t.href} href={t.href} role="tab" aria-selected={path === t.href} className={path === t.href ? "active" : ""}>
+          <Link key={t.href} href={t.href} role="tab" aria-selected={path === t.href || path.startsWith(`${t.href}/`) || (path === "/" && t.href === "/top")} className={path === t.href || path.startsWith(`${t.href}/`) || (path === "/" && t.href === "/top") ? "active" : ""}>
             {t.label}
           </Link>
         ))}
@@ -75,11 +74,12 @@ export default function AppSidebar() {
           <span className="side-head-line" />
           <Link href="/search" className="side-add" aria-label="Lesezeichen hinzufügen">+</Link>
         </div>
-        {bookmarks.length === 0 && <div className="side-empty">Keine Lesezeichen</div>}
-        {bookmarks.map((b) => (
-          <Link key={b.itemId} href={`/item/${b.itemId}`} className="side-row">
+        {error && <div className="err" role="alert">{error}</div>}
+        {searches.length === 0 && <div className="side-empty">Keine Lesezeichen</div>}
+        {searches.map((s) => (
+          <Link key={savedSearchHref(s)} href={savedSearchHref(s)} className="side-row">
             <Icon name="bookmark" size={14} />
-            <span>Beitrag {b.itemId}</span>
+            <span>{s.name}</span>
           </Link>
         ))}
       </div>
@@ -88,7 +88,7 @@ export default function AppSidebar() {
         <div className="side-head">
           <span>Sammlungen</span>
           <span className="side-head-line" />
-          <button className="side-add" onClick={addCollection} aria-label="Sammlung anlegen">+</button>
+          {me && <button className="side-add" onClick={addCollection} aria-label="Sammlung anlegen">+</button>}
         </div>
         {collections.length === 0 && <div className="side-empty">Keine Sammlungen</div>}
         {collections.map((c) => (
@@ -101,6 +101,14 @@ export default function AppSidebar() {
 
       <div className="side-footer">
         <div className="side-footer-row">
+          <Link href="/faq">FAQ</Link>
+          <Link href="/principles">Grundsätze</Link>
+          <Link href="/contact">Kontakt</Link>
+          <Link href="/changelog">Log</Link>
+          <Link href="/datasafety">Datenschutz</Link>
+          <Link href="/imprint">Impressum</Link>
+        </div>
+        <div className="side-footer-row">
           <a href={REPO} rel="noreferrer noopener">Quellcode</a>
           <a href={`${REPO}/blob/main/LICENSE`} rel="noreferrer noopener">Lizenz</a>
           <a href={`${REPO}/blob/main/docs/api-spec.md`} rel="noreferrer noopener">API</a>
@@ -109,6 +117,10 @@ export default function AppSidebar() {
           <a href={`${REPO}/blob/main/docs/self-hosting.md`} rel="noreferrer noopener">Selbst hosten</a>
         </div>
       </div>
+      <button className="side-collapse iconbtn" aria-label="Sidebar einklappen" onClick={() => {
+        document.documentElement.classList.add("side-collapsed");
+        document.documentElement.classList.remove("side-open");
+      }}><Icon name="left" size={16} /></button>
     </aside>
   );
 }

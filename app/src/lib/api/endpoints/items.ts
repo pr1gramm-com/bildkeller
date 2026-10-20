@@ -158,10 +158,15 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     if (!user?.mod && !user?.admin) conds.push(eq(schema.items.userId, user?.userId ?? 0));
   }
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
-  if (older > 0 && promoted === 1 && idParam === 0) {
+  if (older > 0 && promoted === 1) {
     // Popular feed is ordered by (promoted, id): page by that pair, not by id alone.
-    const cur = (await db.select({ p: schema.items.promoted }).from(schema.items).where(eq(schema.items.id, older)).limit(1))[0];
-    conds.push(cur ? sql`(${schema.items.promoted}, ${schema.items.id}) < (${cur.p}, ${older})` : lt(schema.items.id, older));
+    const cursor = idParam || older;
+    const cur = (await db.select({ p: schema.items.promoted }).from(schema.items).where(eq(schema.items.id, cursor)).limit(1))[0];
+    conds.push(cur
+      ? idParam > 0
+        ? sql`(${schema.items.promoted}, ${schema.items.id}) <= (${cur.p}, ${cursor})`
+        : sql`(${schema.items.promoted}, ${schema.items.id}) < (${cur.p}, ${cursor})`
+      : lt(schema.items.id, older));
   } else if (older > 0) conds.push(lt(schema.items.id, older));
   if (userList.length > 0) {
     conds.push(inArray(sql`lower(${schema.users.name})`, userList.map((u) => u.toLowerCase())));

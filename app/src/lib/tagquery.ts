@@ -23,9 +23,9 @@ export function parseTagQuery(q: string): TagQuery {
   let advanced = false;
 
   const push = (t: Term) => groups[groups.length - 1].push(t);
-  const last = groups[groups.length - 1];
-
-  for (const raw of q.trim().split(/\s+/).filter(Boolean)) {
+  // Quoted multiword tags and OR separators without surrounding spaces occur in saved reference feeds.
+  const tokens = q.match(/-?~?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?=\s|\||$)|[^\s|]+|\|/g) ?? [];
+  for (const raw of tokens) {
     if (raw === "!") {
       advanced = true;
       continue;
@@ -40,6 +40,13 @@ export function parseTagQuery(q: string): TagQuery {
     const quoted = body.match(/^"(.+)"$/);
     if (quoted && ["sound", "video", "repost"].includes(quoted[1])) {
       push({ kind: "media", value: quoted[1] as MediaExclude });
+      continue;
+    }
+    const tagBody = body.startsWith("~") ? body.slice(1) : body;
+    const quotedTag = tagBody.match(/^(['"])([\s\S]*)\1$/);
+    if (quotedTag) {
+      const value = quotedTag[2].replace(/\\(.)/g, "$1").toLowerCase();
+      if (value) push({ kind: "tag", value, exact: !body.startsWith("~"), exclude });
       continue;
     }
     const score = body.match(/^s:(\d+)$/);

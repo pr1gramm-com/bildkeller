@@ -65,7 +65,7 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
       if (e.key === "ArrowRight") onNext();
       if (e.key === "Escape") onClose();
       if (e.key === "c") { e.preventDefault(); document.getElementById("comment-input")?.focus(); }
-      if (e.key === "k") { e.preventDefault(); document.getElementById("search")?.focus(); }
+      if (e.key === "k") { e.preventDefault(); document.getElementById(document.documentElement.dataset.design === "app" ? "app-search" : "search")?.focus(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -112,7 +112,7 @@ export default function ItemView({ id, item: given, onPrev, onNext, onClose }: P
 
   async function share() {
     try {
-      await navigator.clipboard.writeText(`${window.location.origin}/item/${id}`);
+      await navigator.clipboard.writeText(window.location.href);
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {

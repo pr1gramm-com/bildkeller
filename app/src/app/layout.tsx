@@ -1,13 +1,10 @@
 import "./globals.css";
 import "./design-app.css";
-import { Inter } from "next/font/google";
 import AppNav from "@/components/AppNav";
 import AppSidebar from "@/components/AppSidebar";
 import DesignToggle from "@/components/DesignToggle";
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 
 export const metadata = {
   title: "pr1gramm",
@@ -22,7 +19,7 @@ const DESIGN_BOOTSTRAP =
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" data-design="classic" className={inter.variable} suppressHydrationWarning>
+    <html lang="de" data-design="classic" suppressHydrationWarning>
       <body>
         <script dangerouslySetInnerHTML={{ __html: DESIGN_BOOTSTRAP }} />
         <div id="page">

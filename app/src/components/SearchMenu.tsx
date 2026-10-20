@@ -1,6 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { searchHref } from "@/lib/feed-route";
 import { MEDIA_EXCLUDES, toTags, writeSearch, type Feed, type SearchState } from "@/lib/client/search";
 
 /** The reference board's search panel: search terms, feed, minimum score, media and tag excludes. */
@@ -14,12 +15,8 @@ export default function SearchMenu({ state, onClose }: { state: SearchState; onC
     e.preventDefault();
     writeSearch(draft);
     const tags = toTags(draft);
-    const params = new URLSearchParams();
-    if (tags) params.set("tags", tags);
-    if (draft.feed === "top") params.set("promoted", "1");
-    if (draft.feed === "junk") params.set("junk", "1");
     onClose();
-    router.push(`/search?${params.toString()}`);
+    router.push(searchHref(draft.feed, tags));
   }
 
   return (

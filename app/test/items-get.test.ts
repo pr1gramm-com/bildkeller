@@ -54,6 +54,17 @@ beforeAll(async () => {
 });
 
 describe("items.get", () => {
+  it("uses promotion order for popular deep links and following pages", async () => {
+    const owner = await createTestUser("promotion-cursor-owner");
+    const now = Math.floor(Date.now() / 1000);
+    const target = await createItem(owner.id, { promoted: now });
+    const olderPromotion = await createItem(owner.id, { promoted: now - 1 });
+    await createItem(owner.id, { promoted: now + 1 });
+    const body = await json(await handle(req(`/api/items/get?promoted=1&id=${target.id}&user=${owner.name}`), ["items", "get"]));
+    expect((body.items as Array<{ id: number }>).map((i) => i.id)).toEqual([target.id, olderPromotion.id]);
+    const page = await json(await handle(req(`/api/items/get?promoted=1&older=${target.id}&user=${owner.name}`), ["items", "get"]));
+    expect((page.items as Array<{ id: number }>).map((i) => i.id)).toEqual([olderPromotion.id]);
+  });
   it("guest sees only SFW, no junk, no deleted", async () => {
     const body = await json(await handle(req("/api/items/get?flags=31&promoted=0"), ["items", "get"]));
     const items = body.items as Array<Record<string, unknown>>;

@@ -23,7 +23,7 @@ h3 { font-weight: normal; text-transform: uppercase; font-size: 14px; color: #f5
 :focus-visible { outline: 2px solid var(--main); outline-offset: 1px; }
 
 /* the pr0.app shell only exists in the app design (see design-app.css) */
-#app-nav, #app-side, #app-bottom { display: none; }
+#app-nav, #app-side, #app-bottom, #app-side-backdrop { display: none; }
 .filter-ico { display: none; }
 
 input, select, textarea { font: inherit; color: #bbb; background: #1b1e1f; border: 0; border-radius: 0; padding: 5px; }
@@ -384,10 +384,9 @@ table.calendar td.has a { color: var(--main); font-weight: 600; }
 
 /* filter menu (pr0gramm-style) */
 .flagfilter { position: relative; }
-#filter-link { margin: 0 8px 0 18px; cursor: pointer; color: var(--text); }
-#filter-link-flag { display: none; margin-right: 4px; }
-#filter-link-name { }
-#filter-menu { position: absolute; right: 0; top: calc(var(--head) + 2px); background: var(--panel); min-width: 300px; z-index: 20; box-shadow: 0 4px 16px #000a; padding: 8px 0; }
+.filter-link { margin: 0 8px 0 18px; cursor: pointer; color: var(--text); }
+.filter-link-flag { display: none; margin-right: 4px; }
+.filter-menu { position: absolute; right: 0; top: calc(var(--head) + 2px); background: var(--panel); min-width: 300px; z-index: 20; box-shadow: 0 4px 16px #000a; padding: 8px 0; }
 .filter-setting-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 16px 8px; }
 .filter-setting { display: flex; align-items: center; justify-content: left; gap: 8px; height: 55px; padding: 4px 2px; cursor: pointer; border-bottom: 1px solid #202325; }
 .filter-setting:last-child { border-bottom: 0; }
@@ -396,7 +395,7 @@ table.calendar td.has a { color: var(--main); font-weight: 600; }
 .filter-setting.active .filter-name { color: var(--main); }
 .filter-check { display: inline-block; width: 14px; height: 14px; border-radius: 50%; border: 1px solid #fff; flex: none; }
 .filter-setting.active .filter-check { border: 1px solid var(--main); background-color: var(--main); }
-#filter-save { font-size: 14px; padding: 8px 2px 8px 2px; width: calc(100% - 32px); margin: 8px 16px 0; }
+.filter-save { font-size: 14px; padding: 8px 2px 8px 2px; width: calc(100% - 32px); margin: 8px 16px 0; }
 
 /* header panels (search menu, bookmarks menu) */
 #bookmarks-link { margin: 0 4px; font-size: 18px; line-height: 1; }
@@ -418,3 +417,5 @@ table.calendar td.has a { color: var(--main); font-weight: 600; }
 .bookmarks-head { display: flex; align-items: center; gap: 8px; margin: 10px 0 4px; color: #888; text-transform: uppercase; font-size: 12px; }
 .bookmarks-head-divider { flex: 1; height: 1px; background: var(--line); }
 
+
+.saved-search-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: baseline; margin: 16px 0; }

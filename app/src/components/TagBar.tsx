@@ -24,7 +24,7 @@ export default function TagBar({ itemId, tags, onChange }: { itemId: number; tag
       <div className="tags">
         {shown.map((t) => (
           <span className="tag" key={t.id}>
-            <Link href={`/search?tags=${encodeURIComponent(t.tag)}`}>{t.tag}</Link>
+            <Link href={`/search?tags=${encodeURIComponent(`'${t.tag.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`)}`}>{t.tag}</Link>
             {me && (
               <span className="tv">
                 <button title="passt" onClick={() => vote(t.tag, true)}>+</button>

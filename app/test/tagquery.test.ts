@@ -2,6 +2,26 @@ import { describe, expect, it } from "vitest";
 import { parseTagQuery } from "@/lib/tagquery";
 
 describe("parseTagQuery", () => {
+  it("keeps apostrophes within unquoted words", () => {
+    expect(parseTagQuery("it's -don't").groups[0]).toEqual([
+      { kind: "tag", value: "it's", exact: true, exclude: false },
+      { kind: "tag", value: "don't", exact: true, exclude: true },
+    ]);
+  });
+  it("keeps multiword tags and parses adjacent OR separators", () => {
+    expect(parseTagQuery("! 'original content'|oc -'selbst gemalt'").groups).toEqual([
+      [{ kind: "tag", value: "original content", exact: true, exclude: false }],
+      [{ kind: "tag", value: "oc", exact: true, exclude: false }, { kind: "tag", value: "selbst gemalt", exact: true, exclude: true }],
+    ]);
+  });
+
+  it("keeps quoted punctuation literal and supports partial multiword tags", () => {
+    expect(parseTagQuery("~'original content' 'a|b' 'it\\'s fine'").groups[0]).toEqual([
+      { kind: "tag", value: "original content", exact: false, exclude: false },
+      { kind: "tag", value: "a|b", exact: true, exclude: false },
+      { kind: "tag", value: "it's fine", exact: true, exclude: false },
+    ]);
+  });
   it("parses the reference query grammar", () => {
     expect(parseTagQuery("! katzen -\"video\" s:100")).toEqual({
       advanced: true,

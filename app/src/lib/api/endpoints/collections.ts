@@ -9,6 +9,8 @@ import { int } from "@/lib/params";
 import { limit } from "@/lib/limiter";
 import { itemVisible, visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
+import { changeSettings, getSettings } from "@/lib/settings";
+import { savedSearches } from "@/lib/saved-searches";
 
 const now = () => Math.floor(Date.now() / 1000);
 
@@ -181,5 +183,28 @@ register("bookmarks.delete", async (ctx) => {
 register("bookmarks.get", async (ctx) => {
   if (!ctx.user) return fail("not logged in");
   const rows = await db.select().from(schema.bookmarks).where(eq(schema.bookmarks.userId, ctx.user.userId));
-  return ok({ bookmarks: rows.map((b) => ({ itemId: b.itemId, created: b.created })) });
+  const searches = savedSearches((await getSettings(ctx.user.userId)).savedSearches);
+  return ok({ bookmarks: rows.map((b) => ({ itemId: b.itemId, created: b.created })), searches });
+});
+
+register("bookmarks.saveSearch", async (ctx) => {
+  const user = me(ctx);
+  const entry = { name: ctx.form.name?.trim(), tags: ctx.form.tags?.trim(), feed: ctx.form.feed };
+  const [search] = savedSearches(JSON.stringify([entry]));
+  if (!search) return fail("invalid");
+  await changeSettings(user.userId, (current) => {
+    const next = savedSearches(current.savedSearches).filter((s) => s.feed !== search.feed || s.tags !== search.tags);
+    if (next.length >= 50) throw new ApiError("bookmark limit");
+    return { ...current, savedSearches: JSON.stringify([...next, search]) };
+  });
+  return ok({});
+});
+
+register("bookmarks.deleteSearch", async (ctx) => {
+  const user = me(ctx);
+  await changeSettings(user.userId, (current) => ({
+    ...current,
+    savedSearches: JSON.stringify(savedSearches(current.savedSearches).filter((s) => s.feed !== ctx.form.feed || s.tags !== ctx.form.tags)),
+  }));
+  return ok({});
 });

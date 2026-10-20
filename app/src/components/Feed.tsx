@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import type { ApiItem } from "@/lib/api/endpoints/items";
 import { api, isVideo, mediaUrl } from "@/lib/client/api";
 import { useFlags } from "@/lib/client/flags";
+import { itemHref, itemIdFromPath } from "@/lib/feed-route";
 import Icon from "./Icon";
 import ItemView from "./ItemView";
 
@@ -23,8 +24,6 @@ type Props = {
   startAt?: number;
 };
 
-const ITEM_PATH = /^\/item\/(\d+)$/;
-
 /** Thumbnail grid; a clicked post opens inline below its row (like pr0gramm.com), the URL follows via the History API. */
 export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt }: Props) {
   const [items, setItems] = useState<ApiItem[]>([]);
@@ -41,9 +40,8 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
   const opened = useRef<HTMLDivElement>(null);
   const pushed = useRef(false); // true while the open post owns a history entry that we pushed from the grid
 
-  const base = baseProp ?? (promoted ? "/top" : "/");
-  const m = ITEM_PATH.exec(path);
-  const openId = m ? Number(m[1]) : null;
+  const base = baseProp ?? (promoted ? "/top" : junk ? "/junk" : "/new");
+  const openId = itemIdFromPath(path);
 
   const load = useCallback(
     async (older?: number) => {
@@ -104,13 +102,13 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
 
   // First open pushes one history entry; moving between posts replaces it, so Back (or Esc) returns to the grid.
   const open = useCallback((id: number) => {
-    if (ITEM_PATH.test(window.location.pathname)) {
-      window.history.replaceState(null, "", `/item/${id}`);
+    if (itemIdFromPath(window.location.pathname) !== null) {
+      window.history.replaceState(null, "", itemHref(base, id));
     } else {
-      window.history.pushState(null, "", `/item/${id}`);
+      window.history.pushState(null, "", itemHref(base, id));
       pushed.current = true;
     }
-  }, []);
+  }, [base]);
   const close = useCallback(() => {
     if (pushed.current) {
       pushed.current = false;
@@ -145,7 +143,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
   const nodes = items.flatMap((i, n) => [
     <Link
       key={i.id}
-      href={`/item/${i.id}`}
+      href={itemHref(base, i.id)}
       prefetch={false}
       className={`tile${i.id === openId ? " on" : ""}`}
       aria-label={`Beitrag ${i.id}`}

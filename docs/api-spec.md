@@ -83,7 +83,7 @@ These could not be observed from the outside, or are simplified. Clients should 
 - **Sync log** events are JSON (`{id, type: "vote", target: "item"|"comment", id, up}`), base64 encoded; vote semantics are toggles.
 - New tags receive the adder's upvote, so they pass the client display threshold (confidence ≥ 0.2).
 - `subscribe`/`unsubscribe` are aliases of `follow`/`unfollow`.
-- `bookmarks.*` store item bookmarks (`itemId`), not saved searches.
+- `bookmarks.add/delete` retain item bookmarks (`itemId`). `bookmarks.get` additionally returns `searches`; `bookmarks.saveSearch` and `bookmarks.deleteSearch` manage account-owned named searches (`name`, `tags`, `feed`: `new`/`top`/`junk`). These named-search operations are Bildkeller extensions, not a claim of upstream API compatibility.
 - `inbox.messages` shape: `{with, messages: [{id, created, sent, message}]}`; `inbox.deleteConversation` is not implemented.
 - Collection curators are added directly (`addCurator`) without an accept step; no `curatorAccept/Allow/Ignore`.
 - Tag deletion is moderator/admin only; `tags.details`, `tags.chronicle`, `items.preview`, `comments.preview`,

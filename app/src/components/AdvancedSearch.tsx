@@ -2,6 +2,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api } from "@/lib/client/api";
+import { saveSearch } from "@/lib/client/bookmarks";
+import { searchHref } from "@/lib/feed-route";
 
 type Type = "tag" | "exactTag" | "user" | "date" | "score" | "rank" | "res";
 type Mode = "include" | "exclude";
@@ -31,7 +33,8 @@ type Row = { type: Type; mode: Mode; value: string; logic: Logic };
 
 /** Encodes one criterion as a query token. */
 function token(r: Row): string {
-  const v = r.value.trim().replace(/\s+/g, "");
+  const value = r.value.trim();
+  const v = /\s|[|'"]/.test(value) ? `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'` : value;
   if (!v) return "";
   const body =
     r.type === "tag" ? `~${v}` :
@@ -51,6 +54,7 @@ export default function AdvancedSearch() {
   ]);
   const [feed, setFeed] = useState<"new" | "top" | "junk">("new");
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [reverse, setReverse] = useState("");
   const [reverseError, setReverseError] = useState("");
   const [reverseHits, setReverseHits] = useState<Array<{ id: number; user: string }>>([]);
@@ -79,15 +83,22 @@ export default function AdvancedSearch() {
     e.preventDefault();
     const q = query();
     if (!q) return;
-    const params = new URLSearchParams({ tags: q });
-    if (feed === "top") params.set("promoted", "1");
-    if (feed === "junk") params.set("junk", "1");
-    router.push(`/search?${params.toString()}`);
+    router.push(searchHref(feed, q));
   }
 
-  function save() {
-    localStorage.setItem("bildkeller.search", query());
-    setSaved(true);
+  async function save() {
+    const tags = query();
+    if (!tags) return;
+    const name = window.prompt("Name des Lesezeichens:", tags);
+    if (!name?.trim()) return;
+    setSaveError("");
+    setSaved(false);
+    try {
+      await saveSearch({ name: name.trim(), tags, feed });
+      setSaved(true);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "Fehler");
+    }
   }
 
   async function reverseSearch(e: React.FormEvent) {
@@ -146,6 +157,7 @@ export default function AdvancedSearch() {
           <button type="button" onClick={save}>Speichern</button>
         </div>
         {saved && <p className="dim">Suche gespeichert.</p>}
+        {saveError && <p className="err" role="alert">{saveError}</p>}
       </form>
       <div className="adv-search">
         <h3>Rückwärtssuche</h3>

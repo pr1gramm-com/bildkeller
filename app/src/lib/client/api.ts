@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 export class ApiError extends Error {}
+export const SESSION_EVENT = "bildkeller:session";
 export type Me = { id: string; n: string; m: string; v: string; a: string } | null;
 
 /** Reads the (non-httpOnly) `me` cookie the server sets at login. */
@@ -20,7 +21,12 @@ export function getMe(): Me {
 /** The session, known after hydration only: the cookie is not visible while the server renders. */
 export function useMe(): Me {
   const [me, setMe] = useState<Me>(null);
-  useEffect(() => setMe(getMe()), []);
+  useEffect(() => {
+    const sync = () => setMe(getMe());
+    sync();
+    window.addEventListener(SESSION_EVENT, sync);
+    return () => window.removeEventListener(SESSION_EVENT, sync);
+  }, []);
   return me;
 }
 

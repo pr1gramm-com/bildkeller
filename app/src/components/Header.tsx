@@ -10,6 +10,7 @@ import FlagFilter from "./FlagFilter";
 import Icon from "./Icon";
 import Logo from "./Logo";
 import SearchMenu from "./SearchMenu";
+import { feedPath, searchHref } from "@/lib/feed-route";
 
 const TABS = [
   { href: "/new", label: "neu" },
@@ -41,7 +42,8 @@ export default function Header() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const value = params.get("tags") ?? params.get("q");
-    if (value) setQ(value);
+    const route = feedPath(path);
+    setQ(value ?? route?.tags ?? "");
   }, [path]);
 
   useEffect(() => {
@@ -56,7 +58,7 @@ export default function Header() {
       <Link href="/" className="logo" aria-label="Startseite"><Logo /></Link>
       <nav>
         {TABS.map((t) => (
-          <Link key={t.href} href={t.href} className={path === t.href ? "active" : ""}>{t.label}</Link>
+          <Link key={t.href} href={t.href} className={path === t.href || path.startsWith(`${t.href}/`) || (path === "/" && t.href === "/top") ? "active" : ""}>{t.label}</Link>
         ))}
       </nav>
       <button
@@ -70,7 +72,7 @@ export default function Header() {
         &#8943;
       </button>
       {me && <FlagFilter />}
-      <form className="search" onSubmit={(e) => { e.preventDefault(); router.push(`/search?tags=${encodeURIComponent(q)}`); }}>
+      <form className="search" onSubmit={(e) => { e.preventDefault(); const feed = path.startsWith("/new") ? "new" : path.startsWith("/junk") ? "junk" : "top"; router.push(searchHref(feed, q)); }}>
         <input id="search" placeholder="Suchen" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="iconbtn" aria-label="Suchen"><Icon name="search" size={18} /></button>
       </form>

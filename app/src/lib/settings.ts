@@ -33,6 +33,7 @@ export const DEFAULT_SETTINGS = {
   likesArePublic: false,
   mediaServer: "default",
   deviceMail: true,
+  savedSearches: "[]",
 } as const;
 
 export type Settings = { -readonly [K in keyof typeof DEFAULT_SETTINGS]: (typeof DEFAULT_SETTINGS)[K] extends boolean ? boolean : (typeof DEFAULT_SETTINGS)[K] extends number ? number : string };
@@ -52,10 +53,18 @@ export async function updateSettings(userId: number, form: Record<string, string
     else if (typeof def === "number") patch[key] = Number(raw) || 0;
     else patch[key] = raw;
   }
-  const next = { ...(await getSettings(userId)), ...patch };
-  await db
-    .insert(schema.userSettings)
-    .values({ userId, settings: next })
-    .onConflictDoUpdate({ target: schema.userSettings.userId, set: { settings: next } });
-  return next;
+  return changeSettings(userId, (current) => ({ ...current, ...patch }));
+}
+
+/** Lock the owner even before a settings row exists, so read/modify/write operations cannot lose updates. */
+export async function changeSettings(userId: number, change: (current: Settings) => Settings): Promise<Settings> {
+  return db.transaction(async (tx) => {
+    await tx.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.id, userId)).for("update");
+    const [row] = await tx.select().from(schema.userSettings).where(eq(schema.userSettings.userId, userId));
+    const current = { ...DEFAULT_SETTINGS, ...(row?.settings as object) } as Settings;
+    const next = change(current);
+    await tx.insert(schema.userSettings).values({ userId, settings: next })
+      .onConflictDoUpdate({ target: schema.userSettings.userId, set: { settings: next } });
+    return next;
+  });
 }

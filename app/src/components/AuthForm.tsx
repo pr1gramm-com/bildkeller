@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { api } from "@/lib/client/api";
+import { api, SESSION_EVENT } from "@/lib/client/api";
 
 export default function AuthForm({ mode }: { mode: "login" | "register" }) {
   const router = useRouter();
@@ -20,6 +20,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
         await api.post("user/joinwithinvite", {
           name: f.name, password: f.password, email: f.email, invite: f.invite, ageVerified: f.age ? 1 : 0,
         });
+      window.dispatchEvent(new Event(SESSION_EVENT));
       router.push("/");
       router.refresh();
     } catch (err) {
