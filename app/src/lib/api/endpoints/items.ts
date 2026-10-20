@@ -15,7 +15,7 @@ import { assertNonce } from "@/lib/auth";
 import { fetchRemote } from "@/lib/fetchurl";
 import { limit } from "@/lib/limiter";
 import { uploadQuota } from "@/lib/ratelimit";
-import { parseTagQuery, type Term } from "@/lib/tagquery";
+import { parseTagQuery, type Term, type QueryExpression } from "@/lib/tagquery";
 import { logEvent } from "@/lib/sync";
 import { visibleComment, visibleItem } from "@/lib/visibility";
 import { addTag } from "@/lib/tags";
@@ -99,6 +99,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const pageSize = Math.min(Math.max(int(ctx.query.get("limit"), MAX_PAGE), 1), MAX_PAGE);
   const junkOnly = ctx.query.get("junk") === "1";
   const tq = parseTagQuery(ctx.query.get("tags") ?? "");
+  if (tq.invalid) return fail("invalid query");
   const userList = ctx.query.get("users")
     ? ctx.query.get("users")!.split(",").map((u) => u.trim()).filter(Boolean)
     : [];
@@ -160,6 +161,13 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     eq(schema.items.deleted, false),
     sql`(${schema.items.flags} & ${flags}) != 0`,
   ];
+  const expressionSql = (expression: QueryExpression): SQL => {
+    if (expression.type === "term") return termSql(expression.term);
+    if (expression.type === "not") return sql`not (${expressionSql(expression.child)})`;
+    const parts = expression.children.map(expressionSql);
+    return (expression.type === "and" ? and(...parts) : or(...parts)) as SQL;
+  };
+  if (tq.expression) conds.push(expressionSql(tq.expression));
   if (groups.length === 1) conds.push(groups[0]);
   else if (groups.length > 1) conds.push(or(...groups) as SQL);
   if (!showJunk && !junkOnly) conds.push(eq(schema.items.junk, false));
@@ -170,10 +178,17 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   }
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
   const collectionAdded = sql`(select ci.added from collection_items ci where ci.collection_id = ${collectionId} and ci.item_id = ${schema.items.id})`;
+  const randomOrder = sql`md5(${schema.items.id}::text || ':' || ${tq.randomSeed ?? ""})`;
   if (collectionId) conds.push(sql`exists (select 1 from collection_items ci where ci.collection_id = ${collectionId} and ci.item_id = ${schema.items.id})`);
   if (historyFeed) {
     const start = idParam ? history.indexOf(idParam) : older ? history.indexOf(older) + 1 : 0;
     conds.push(inArray(schema.items.id, start < 0 ? [] : history.slice(start)));
+  } else if (tq.randomSeed && older > 0) {
+    const cursor = idParam || older;
+    const cursorHash = sql`md5(${String(cursor)} || ':' || ${tq.randomSeed})`;
+    conds.push(idParam
+      ? sql`(${randomOrder}, ${schema.items.id}) >= (${cursorHash}, ${cursor})`
+      : sql`(${randomOrder}, ${schema.items.id}) > (${cursorHash}, ${cursor})`);
   } else if (collectionId && older > 0) {
     const cursor = idParam || older;
     const [entry] = await db.select().from(schema.collectionItems).where(and(eq(schema.collectionItems.collectionId, collectionId), eq(schema.collectionItems.itemId, cursor))).limit(1);
@@ -212,7 +227,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
     .where(and(...conds))
     .orderBy(
-      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : collectionId ? [desc(collectionAdded), desc(schema.items.id)] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
+      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : tq.randomSeed ? [asc(randomOrder), asc(schema.items.id)] : collectionId ? [desc(collectionAdded), desc(schema.items.id)] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
     )
     .limit(pageSize + 1);
 

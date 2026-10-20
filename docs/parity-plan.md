@@ -108,3 +108,18 @@ Seitenbreite nach Reload und Sammlungsbeitrag → Reload → Escape zur Sammlung
 Agent-browser bestätigt: Nach fehlgeschlagenem Ersatzupload ist die alte Datei nicht
 mehr absendbar. Die weiteren Layoutvarianten, Avatarfunktionen, besondere Feeds,
 Suchgruppen und vollständige Abnahme aller Imageboard-Flows bleiben offen.
+
+## Vierte Korrektureinheit
+
+- Verschachtelte Suchgruppen mit AND, OR und negierten Gruppen werden als
+  begrenzter Ausdrucksbaum ausgewertet und parameterisiert in SQL übersetzt.
+- Die beobachtete Zufallsroute `!-(x:random | x:<seed>)` liefert eine stabile,
+  seedabhängige Reihenfolge mit korrekter Fortsetzung und Beitrags-Deep-Links.
+- Browserprüfung fand doppelt kodierte Suchsegmente: Die installierte Next.js-Version
+  liefert sie an dieser Seitengrenze kodiert. FeedPage dekodiert genau einmal;
+  ein Regressionstest deckt Mehrwortsuche, Prozentliterale und ungültige Kodierung ab.
+
+Remote-Typecheck, **163/163 Tests in 24 Dateien** und Build bestanden; Diff-Review freigegeben.
+Browserabnahme mit ego-lite und agent-browser: gruppierte Such-URL liefert passende
+Beiträge, Zufallsreihenfolge bleibt nach Reload stabil; Beitrags-Deep-Link, Reload und
+Escape erhalten die Zufallssuche. Agent-browser meldet dabei keine Runtime-Fehler.

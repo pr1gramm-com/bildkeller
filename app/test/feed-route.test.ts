@@ -39,5 +39,7 @@ describe("personal feed contexts", () => {
     }
     expect(contextRoute("/seen", ["0"])).toBeNull();
     expect(contextRoute("/seen", ["42", "43"])).toBeNull();
+    expect(contextRoute("/seen", ["42%3Acomment9"])?.startAt).toBe(42);
+    expect(contextRoute("/seen", ["%ZZ"])).toBeNull();
   });
 });

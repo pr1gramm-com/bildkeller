@@ -90,3 +90,22 @@ describe("parseTagQuery", () => {
     ]);
   });
 });
+
+describe("grouped tag queries", () => {
+  it("keeps OR groups inside surrounding AND terms and allows negated groups", () => {
+    const query = parseTagQuery("! nsfw ('original content'|oc) -(spam|repost)");
+    expect(query.invalid).toBeUndefined();
+    expect(query.expression).toMatchObject({ type: "and", children: [
+      { type: "term", term: { kind: "tag", value: "nsfw" } },
+      { type: "or", children: [{ type: "term", term: { value: "original content" } }, { type: "term", term: { value: "oc" } }] },
+      { type: "not", child: { type: "or" } },
+    ] });
+  });
+  it("keeps quoted parentheses literal and rejects incomplete or excessive nesting", () => {
+    expect(parseTagQuery("'tag (literal)'").groups[0][0]).toMatchObject({ value: "tag (literal)" });
+    for (const value of ["(tag", "tag)", "()", "(tag|)", "(".repeat(18) + "tag" + ")".repeat(18)]) expect(parseTagQuery(value).invalid).toBe(true);
+  });
+  it("recognizes the reference seeded random link", () => {
+    expect(parseTagQuery("!-(x:random | x:1792521169)")).toEqual({ advanced: true, groups: [], randomSeed: "1792521169" });
+  });
+});

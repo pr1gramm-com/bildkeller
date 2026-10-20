@@ -9,16 +9,24 @@ export type Term =
   | { kind: "res"; width: number; height: number; exclude: boolean }
   | { kind: "media"; value: MediaExclude };
 
+export type QueryExpression =
+  | { type: "term"; term: Term }
+  | { type: "and" | "or"; children: QueryExpression[] }
+  | { type: "not"; child: QueryExpression };
+
 export type TagQuery = {
   advanced: boolean;
   /** OR of AND-groups: groups are separated by "|", terms inside a group are ANDed. */
   groups: Term[][];
+  expression?: QueryExpression;
+  invalid?: boolean;
+  randomSeed?: string;
 };
 
 /** The reference board's query grammar:
  * `! tag -tag ~tag -"video" s:100 -s:50 u:name -u:other m:3 r:1920x1080 d:2024-01-01..2024-12-31`
  */
-export function parseTagQuery(q: string): TagQuery {
+function parseFlatTagQuery(q: string): TagQuery {
   const groups: Term[][] = [[]];
   let advanced = false;
 
@@ -87,4 +95,44 @@ export function parseTagQuery(q: string): TagQuery {
   }
 
   return { advanced, groups: groups.filter((g) => g.length > 0) };
+}
+
+
+/** Parentheses bind OR groups inside the surrounding AND expression. */
+export function parseTagQuery(q: string): TagQuery {
+  if (q.length > 4096) return { advanced: q.includes("!"), groups: [], invalid: true };
+  const random = /^!\s*-\(\s*x:random\s*\|\s*x:(\d{1,13})\s*\)$/.exec(q.trim());
+  if (random) return { advanced: true, groups: [], randomSeed: random[1] };
+  const tokens = q.match(/-?~?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?=\s|[|()]|$)|-\(|[|()]|[^\s|()]+/g) ?? [];
+  if (!tokens.some((token) => token === "(" || token === "-(" || token === ")")) return parseFlatTagQuery(q);
+  let at = 0;
+  let advanced = false;
+  const combine = (type: "and" | "or", children: QueryExpression[]): QueryExpression => children.length === 1 ? children[0] : { type, children };
+  function conjunction(depth: number): QueryExpression {
+    if (depth > 16) throw new Error("query nesting");
+    const children: QueryExpression[] = [];
+    while (at < tokens.length && tokens[at] !== ")" && tokens[at] !== "|") {
+      const token = tokens[at++];
+      if (token === "!") { advanced = true; continue; }
+      if (token === "(" || token === "-(") {
+        const child = disjunction(depth + 1);
+        if (tokens[at++] !== ")") throw new Error("unclosed group");
+        children.push(token === "-(" ? { type: "not", child } : child);
+      } else {
+        for (const term of parseFlatTagQuery(token).groups.flat()) children.push({ type: "term", term });
+      }
+    }
+    if (children.length === 0) throw new Error("empty group");
+    return combine("and", children);
+  }
+  function disjunction(depth: number): QueryExpression {
+    const children = [conjunction(depth)];
+    while (tokens[at] === "|") { at += 1; children.push(conjunction(depth)); }
+    return combine("or", children);
+  }
+  try {
+    const expression = disjunction(0);
+    if (at !== tokens.length) throw new Error("unexpected group end");
+    return { advanced, groups: [], expression };
+  } catch { return { advanced, groups: [], invalid: true }; }
 }

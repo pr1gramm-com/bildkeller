@@ -7,6 +7,7 @@ import Icon from "./Icon";
 import { useSavedSearches } from "@/lib/client/bookmarks";
 import { savedSearchHref } from "@/lib/saved-searches";
 import { usePreferences } from "@/lib/client/preferences";
+import { searchHref } from "@/lib/feed-route";
 
 const REPO = "https://github.com/pr1gramm-com/bildkeller";
 
@@ -25,6 +26,8 @@ export default function AppSidebar() {
   const preferences = usePreferences();
   const { searches, error } = useSavedSearches();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [randomSeed, setRandomSeed] = useState(0);
+  useEffect(() => setRandomSeed(Math.floor(Date.now() / 1000)), []);
 
   const load = useCallback(() => {
     api.get("collections/get").then((r) => setCollections(r.collections ?? [])).catch(() => undefined);
@@ -44,6 +47,7 @@ export default function AppSidebar() {
   const nav = [
     { href: "/stalk", label: "Abos", icon: "rss" as const },
     { href: "/top/!%20s%3A600", label: "Best of", icon: "star" as const },
+    { href: searchHref("new", `!-(x:random | x:${randomSeed})`), label: "Zufall", icon: "play" as const },
     { href: "/calendar", label: "Kalender", icon: "calendar" as const },
     ...(me && preferences.showSeenNav ? [{ href: "/seen", label: "Gesehene Hochlads", icon: "play" as const }] : []),
     ...(me ? [{ href: `/user/${me.n}/uploads`, label: "Meine Uploads", icon: "user" as const }] : []),

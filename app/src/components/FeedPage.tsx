@@ -6,7 +6,11 @@ export default async function FeedPage({ feed, params }: {
   feed: FeedName;
   params: Promise<{ segments?: string[] }>;
 }) {
-  const route = feedRoute(feed, (await params).segments);
+  const { segments } = await params;
+  let decoded: string[] | undefined;
+  try { decoded = segments?.map(decodeURIComponent); }
+  catch { notFound(); }
+  const route = feedRoute(feed, decoded);
   if (!route) notFound();
   return <Feed {...route} promoted={feed === "top" ? 1 : 0} junk={feed === "junk"} />;
 }

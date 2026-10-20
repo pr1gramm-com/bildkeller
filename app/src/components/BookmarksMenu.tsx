@@ -4,15 +4,20 @@ import { useMe } from "@/lib/client/api";
 import { useSavedSearches } from "@/lib/client/bookmarks";
 import { savedSearchHref } from "@/lib/saved-searches";
 import { usePreferences } from "@/lib/client/preferences";
+import { useEffect, useState } from "react";
+import { searchHref } from "@/lib/feed-route";
 
 /** The reference board's "⋯" menu: quick links to the personal feeds. */
 export default function BookmarksMenu({ onClose }: { onClose: () => void }) {
   const me = useMe();
   const { searches } = useSavedSearches();
   const preferences = usePreferences();
+  const [randomSeed, setRandomSeed] = useState(0);
+  useEffect(() => setRandomSeed(Math.floor(Date.now() / 1000)), []);
   const rows: Array<[string, string, string]> = [
     ["/user/uploads", "u", "meine Hochlads"],
     ["/stalk", "@", "Stelzungen"],
+    [searchHref("new", `!-(x:random | x:${randomSeed})`), "↝", "Zufall"],
   ];
   return (
     <div id="bookmarks-menu" className="tip-menu bookmarks-menu">

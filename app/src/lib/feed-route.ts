@@ -25,6 +25,8 @@ export function itemHref(base: string, id: number): string {
 }
 
 export function contextRoute(base: string, segments: string[] = []) {
+  try { segments = segments.map(decodeURIComponent); }
+  catch { return null; }
   if (segments.length === 0) return { base, startAt: undefined };
   if (segments.length !== 1 || !/^\d+(?::comment\d+)?$/.test(segments[0])) return null;
   const startAt = Number(segments[0].split(":")[0]);
