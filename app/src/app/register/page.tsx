@@ -1,2 +1,9 @@
 import AuthForm from "@/components/AuthForm";
-export default function Register() { return <AuthForm mode="register" />; }
+import { connection } from "next/server";
+import { config } from "@/lib/config";
+
+export default async function Register() {
+  await connection();
+  const inviteRequired = (await config("invites.required")) !== false;
+  return <AuthForm mode="register" inviteRequired={inviteRequired} />;
+}

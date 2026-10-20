@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { api, SESSION_EVENT } from "@/lib/client/api";
 
-export default function AuthForm({ mode }: { mode: "login" | "register" }) {
+export default function AuthForm({ mode, inviteRequired = true }: { mode: "login" | "register"; inviteRequired?: boolean }) {
   const router = useRouter();
   const [f, setF] = useState({ name: "", password: "", email: "", invite: "", age: false });
   const [error, setError] = useState("");
@@ -37,7 +37,8 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
         {mode === "register" && (
           <>
             <div className="form-row"><label>E-Mail (optional):</label><input name="email" type="email" placeholder="E-Mail" value={f.email} onChange={set("email")} /></div>
-            <div className="form-row"><label>Einladungscode (leer beim ersten Account):</label><input name="invite" placeholder="Einladungscode" value={f.invite} onChange={set("invite")} /></div>
+            {inviteRequired && <div className="form-row"><label>Einladungscode (leer beim ersten Account):</label><input name="invite" placeholder="Einladungscode" value={f.invite} onChange={set("invite")} /></div>}
+            {!inviteRequired && <p>Die Registrierung ist offen. Du brauchst keinen Einladungscode und kannst direkt posten.</p>}
             <label className="age"><input type="checkbox" checked={f.age} onChange={set("age")} /> <span>Ich bin mindestens 18 (schaltet NSFW/NSFL frei)</span></label>
           </>
         )}
@@ -47,7 +48,7 @@ export default function AuthForm({ mode }: { mode: "login" | "register" }) {
       </form>
       <div className="overlay-content">
         <h2>{mode === "login" ? "Neu registrieren" : "Anmelden"}</h2>
-        <p>{mode === "login" ? "Wenn du noch kein Konto hast, kannst du dir hier mit einem Einladungscode eins erstellen." : "Du hast schon ein Konto?"}</p>
+        <p>{mode === "login" ? "Wenn du noch kein Konto hast, kannst du dir hier eins erstellen." : "Du hast schon ein Konto?"}</p>
         <div className="form-row"><Link href={mode === "login" ? "/register" : "/login"} className="btn-primary cta">{mode === "login" ? "Konto erstellen" : "Zum Login"}</Link></div>
       </div>
     </div>

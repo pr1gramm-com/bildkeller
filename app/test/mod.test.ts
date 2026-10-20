@@ -1,4 +1,4 @@
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { NextRequest } from "next/server";
 import { db, schema } from "@bildkeller/db";
@@ -6,6 +6,7 @@ import { handle } from "@/lib/api/router";
 import "@/lib/api/register-all";
 import { createItem, createTestUser, cookieFor } from "./helpers";
 import { createSession, hashPassword } from "@/lib/auth";
+import * as siteConfig from "@/lib/config";
 
 type ReqInit = { method?: string; body?: BodyInit; headers?: Record<string, string> };
 const req = (path: string, init?: ReqInit) => new NextRequest(`http://localhost:3000${path}`, init);
@@ -37,6 +38,22 @@ beforeAll(async () => {
 });
 
 describe("registration with invites", () => {
+  it("open registration admits a regular account without an invite", async () => {
+    const config = vi.spyOn(siteConfig, "config").mockResolvedValueOnce(false);
+    try {
+      const res = await post("/api/user/joinwithinvite", { name: "opennewbie", password: "passw0rd!" });
+      expect((await json(res)).success).toBe(true);
+      expect(res.headers.get("set-cookie")).toContain("me=");
+      const [created] = await db.select().from(schema.users).where(eq(schema.users.name, "opennewbie"));
+      expect(created.admin).toBe(false);
+      expect(created.mod).toBe(false);
+      expect(created.inviteId).toBeNull();
+      expect(created.verified).toBe(false);
+    } finally {
+      config.mockRestore();
+    }
+  });
+
   it("requires an invite code", async () => {
     const res = await json(await post("/api/user/joinwithinvite", { name: "newbie1", password: "passw0rd!", email: "n@x.de" }));
     expect(res.error).toBe("invite required");
