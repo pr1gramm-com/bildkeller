@@ -4,6 +4,8 @@ import { getSessionUser } from "@/lib/auth";
 import { fetchRemote } from "@/lib/fetchurl";
 import { storeUpload } from "@/lib/media";
 import { purgeStaleUploads, uploadQuota } from "@/lib/ratelimit";
+import { limitedForm } from "@/lib/limited-form";
+import { ApiError } from "@/lib/api/envelope";
 
 /** Phase 1 of the upload flow: store media, return a staging key. */
 export async function POST(req: NextRequest) {
@@ -15,10 +17,9 @@ export async function POST(req: NextRequest) {
   if (left <= 0) return NextResponse.json({ ...fail("ratelimited"), left: 0 });
 
   const max = Number(process.env.MAX_UPLOAD_BYTES ?? 50 * 1024 * 1024);
-  if (Number(req.headers.get("content-length") ?? 0) > max + 64 * 1024) {
-    return NextResponse.json(fail("too large"));
-  }
-  const form = await req.formData().catch(() => null);
+  let form: FormData | null;
+  try { form = await limitedForm(req, max + 64 * 1024); }
+  catch (e) { return NextResponse.json(fail(e instanceof ApiError ? e.message : "invalid request")); }
   const file = form?.get("image");
   const remoteUrl = typeof form?.get("url") === "string" ? String(form.get("url")) : "";
   let buf: Buffer;

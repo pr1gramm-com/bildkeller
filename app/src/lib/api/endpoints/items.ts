@@ -21,6 +21,7 @@ import { visibleComment, visibleItem } from "@/lib/visibility";
 import { addTag } from "@/lib/tags";
 import { changeSettings, getSettings } from "@/lib/settings";
 import { itemHistory } from "@/lib/item-history";
+import { avatarPath } from "@/lib/avatar-path";
 
 export type ApiItem = {
   id: number;
@@ -331,9 +332,10 @@ export async function itemsInfo(ctx: ApiCtx) {
     .orderBy(desc(sql`${schema.itemTags.up} - ${schema.itemTags.down}`));
 
   const commentRows = await db
-    .select({ comment: schema.comments, userName: schema.users.name, userMark: schema.users.mark })
+    .select({ comment: schema.comments, userName: schema.users.name, userMark: schema.users.mark, settings: schema.userSettings.settings })
     .from(schema.comments)
     .innerJoin(schema.users, eq(schema.users.id, schema.comments.userId))
+    .leftJoin(schema.userSettings, eq(schema.userSettings.userId, schema.users.id))
     .where(and(eq(schema.comments.itemId, id), eq(schema.comments.deleted, false)))
     .orderBy(asc(schema.comments.id));
 
@@ -371,6 +373,7 @@ export async function itemsInfo(ctx: ApiCtx) {
       confidence: wilson(c.comment.up, c.comment.down),
       name: c.userName,
       mark: c.userMark,
+      avatar: avatarPath((c.settings as Record<string, unknown> | null)?.avatar),
       blocked: blocked.has(c.comment.userId),
       vote: commentVotes.get(c.comment.id) ?? null,
     })),

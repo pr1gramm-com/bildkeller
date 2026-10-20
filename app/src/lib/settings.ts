@@ -13,6 +13,7 @@ export async function getSettings(userId: number): Promise<Settings> {
 export async function updateSettings(userId: number, form: Record<string, string>): Promise<Settings> {
   const patch: Record<string, string | number | boolean> = {};
   for (const [key, def] of Object.entries(DEFAULT_SETTINGS)) {
+    if (key === "avatar") continue; // only the validated avatar upload endpoint may set media paths
     const raw = form[key];
     if (raw === undefined) continue;
     if (typeof def === "boolean") patch[key] = raw === "1" || raw === "true";

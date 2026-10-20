@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { api, ago, useMe } from "@/lib/client/api";
+import { api, ago, useMe, mediaUrl } from "@/lib/client/api";
 import { markColor } from "@/lib/marks";
 import Icon from "./Icon";
 import VoteBox from "./VoteBox";
@@ -11,6 +11,7 @@ import { usePreferences } from "@/lib/client/preferences";
 export type ApiComment = {
   id: number; parent: number; content: string; created: number; editedAt: number | null; editCount: number;
   up: number; down: number; confidence: number; name: string; mark: number; blocked: boolean; vote?: boolean | null;
+  avatar?: string | null;
 };
 
 type Node = ApiComment & { children: Node[] };
@@ -133,6 +134,7 @@ function CommentNode({ n, itemId, op, onChange, favorites, base, depth = 0 }: { 
           : <div className={`comment-content${preferences.collapseLongComments && longText && !fullText ? " comment-short" : ""}`}>{n.content.split(/(https?:\/\/[^\s]+|@[\w-]{2,32})/g).map((part, i) => /^https?:\/\//.test(part) ? <a key={i} className="hot" href={part} target="_blank" rel="noreferrer noopener">{part}</a> : /^@[\w-]{2,32}$/.test(part) ? <Link key={i} className="hot" href={`/user/${part.slice(1)}`}>{part}</Link> : part)}</div>)}
         {open && !folded && preferences.collapseLongComments && longText && <button className="link hot" onClick={() => setFullText(!fullText)}>{fullText ? "weniger anzeigen" : "mehr anzeigen"}</button>}
         <div className="comment-foot">
+          {preferences.showAvatars && n.avatar && <img className="comment-avatar" src={mediaUrl(n.avatar)} alt="" />}
           {n.name === op && <span className="user-comment-op">OP</span>}
           <Link href={`/user/${n.name}`} className="user">{n.name}</Link>
           <span className="mark" style={{ color: markColor(n.mark) }}>●</span>

@@ -123,3 +123,20 @@ Remote-Typecheck, **163/163 Tests in 24 Dateien** und Build bestanden; Diff-Revi
 Browserabnahme mit ego-lite und agent-browser: gruppierte Such-URL liefert passende
 Beiträge, Zufallsreihenfolge bleibt nach Reload stabil; Beitrags-Deep-Link, Reload und
 Escape erhalten die Zufallssuche. Agent-browser meldet dabei keine Runtime-Fehler.
+
+## Fünfte Korrektureinheit
+
+- Eigene Profilbilder lassen sich als PNG/JPG hochladen, frei positionieren und
+  zoomen, speichern und entfernen. Serverseitig: 64–8192 px, höchstens 20 MB,
+  normalisierte Ausgabe 512×512 ohne Quellmetadaten; ausschließlich Hash-Dateipfade.
+- Avatare erscheinen im Profil, in Kommentaren und in der App-Navigation;
+  die Avatar-Anzeige folgt der Kontoeinstellung.
+- Session, Nonce und Rate-Limit schützen die Änderung. Der gesamte Multipart-Body
+  wird vor Parsing begrenzt, auch ohne Content-Length und bei großen Zusatzfeldern.
+  Dasselbe begrenzte Einlesen ersetzt das unbeschränkte Parsing im Medienupload.
+- Das App-Profil wechselt bei engem Inhaltsbereich in eine Spalte.
+
+Remote-Typecheck, **171/171 Tests in 26 Dateien**, Produktionsbuild und Sicherheits-
+Nachreview bestanden. Ego bestätigt Zuschnitt, 512px-Ausgabe, Reload und Navigation;
+agent-browser bestätigt Classic-Anzeige und Entfernen nach Reload ohne Runtimefehler.
+Mobiles Profil bei 390×844: kein horizontaler Überlauf.

@@ -9,7 +9,7 @@ import { createSession } from "@/lib/auth";
 
 const HAR_COMMENT_KEYS = [
   "id", "parent", "content", "created", "editedAt", "editCount", "up", "down",
-  "confidence", "name", "mark", "blocked", "vote",
+  "confidence", "name", "mark", "blocked", "vote", "avatar",
 ].sort();
 
 type ReqInit = { method?: string; body?: BodyInit; headers?: Record<string, string> };

@@ -6,6 +6,7 @@ type Value = string | number | boolean;
 type Props = { tab: string; settings: Record<string, Value>; save: (patch: Record<string, Value>) => void };
 const TOGGLES: Record<string, Array<[string, string, string]>> = {
   appearance: [
+    ["showAvatars", "Avatare anzeigen", "Zeigt Profilbilder in Profilen, Kommentaren und Navigation."],
     ["showBookmarkBar", "Lesezeichen anzeigen", "Zeigt deine gespeicherten Suchen in der Navigation."],
     ["showThumbnailFlags", "Inhaltsmarkierungen anzeigen", "Kennzeichnet die Einstufung der Kacheln."],
     ["showSeenNav", "Verlauf in der Navigation", "Zeigt den Link zu deinen gesehenen Hochlads."],

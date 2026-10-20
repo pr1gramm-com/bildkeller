@@ -32,6 +32,7 @@ export const DEFAULT_SETTINGS = {
   deviceMail: true,
   savedSearches: "[]",
   seenItems: "[]",
+  avatar: "",
 } as const;
 
 export type Settings = { -readonly [K in keyof typeof DEFAULT_SETTINGS]: (typeof DEFAULT_SETTINGS)[K] extends boolean ? boolean : (typeof DEFAULT_SETTINGS)[K] extends number ? number : string };

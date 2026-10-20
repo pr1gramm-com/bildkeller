@@ -8,6 +8,9 @@ import { syncOnce } from "@/lib/client/votes";
 import FlagFilter from "./FlagFilter";
 import Icon from "./Icon";
 import Logo from "./Logo";
+import { usePreferences } from "@/lib/client/preferences";
+import { avatarPath } from "@/lib/avatar-path";
+import { mediaUrl } from "@/lib/client/api";
 
 const BOTTOM = [
   { href: "/top", label: "Beliebt", icon: "star" as const },
@@ -28,6 +31,7 @@ export default function AppNav() {
   const [sideOpen, setSideOpen] = useState(false);
   const [menuError, setMenuError] = useState("");
   const userMenu = useRef<HTMLDivElement>(null);
+  const preferences = usePreferences();
 
   useEffect(() => {
     setMe(getMe());
@@ -120,6 +124,7 @@ export default function AppNav() {
               </Link>
               <div className="an-user-menu" ref={userMenu}>
                 <button className="an-user iconbtn" aria-label={`${me.n}, Profil und Einstellungen`} aria-expanded={menu} aria-controls="app-profile-menu" onClick={() => setMenu(!menu)}>
+                  {preferences.showAvatars && avatarPath(preferences.avatar) && <img className="an-avatar" src={mediaUrl(preferences.avatar)} alt="" />}
                   <span className="an-name">{me.n}</span>
                   <span className="an-caret">▾</span>
                 </button>

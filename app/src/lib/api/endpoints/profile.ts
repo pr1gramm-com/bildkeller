@@ -12,6 +12,7 @@ import { itemVisible } from "@/lib/visibility";
 import { userStatus } from "@/lib/status";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 import { getSettings } from "@/lib/settings";
+import { avatarPath } from "@/lib/avatar-path";
 
 const now = () => Math.floor(Date.now() / 1000);
 const count = (q: Promise<Array<{ c: number }>>) => q.then((r) => Number(r[0].c));
@@ -126,7 +127,7 @@ register("profile.info", async (ctx) => {
       commentDelete: 0,
       itemDelete: 0,
       canReceiveMessages: true,
-      avatar: null,
+      avatar: avatarPath(preferences.avatar),
       avatarId: 0,
     },
     badges: [],

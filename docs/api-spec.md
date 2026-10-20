@@ -92,3 +92,11 @@ These could not be observed from the outside, or are simplified. Clients should 
 - Rate limits answer `{"error": "rate limited"}`; uploads are capped (`MAX_UPLOAD_BYTES`, default 50 MB, answer `too large`).
 - Reposts: exact SHA-256 match of the uploaded file (no perceptual hashing yet).
 - `items.reverse` matches by the same SHA-256 hash, so it finds identical files, not visually similar ones.
+
+### Profilavatar (eigene Erweiterung)
+
+`POST /api/user/avatar` nimmt Multipart-FormData mit `_nonce` und `image` (PNG/JPG,
+64–8192 px, maximal 20 MB) entgegen. `x`/`y` positionieren den quadratischen Ausschnitt
+von 0 bis 100 (Standard 50), `zoom` von 1 bis 4 (Standard 1). Die Ausgabe ist 512×512 PNG.
+`remove=1` entfernt das eigene Profilbild. Antwort: Envelope mit `settings`.
+Ein Avatarpfad kann nicht über `user/sitesettings` gesetzt werden.

@@ -477,3 +477,11 @@ html[data-design="app"] #main-view { max-width: var(--content-max-width, none); 
 .preference-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--line); }
 .preference-row small { display: block; margin-top: 4px; color: var(--dim); }
 .preference-row input { flex-shrink: 0; width: 20px; height: 20px; }
+
+html[data-design="app"] #main-view { container-type: inline-size; }
+html[data-design="app"] .user-page > .profile-heading { grid-column: 1 / -1; }
+html[data-design="app"] button.avatar-select { border-radius: 50%; background: transparent; }
+@container (max-width: 760px) {
+  html[data-design="app"] .user-page { display: flex; flex-direction: column; }
+  html[data-design="app"] .user-stats, html[data-design="app"] .user-counts { padding: 8px 0; }
+}

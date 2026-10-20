@@ -3,12 +3,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, ago, useMe, mediaUrl } from "@/lib/client/api";
 import { backgroundOf } from "@/lib/backgrounds";
+import AvatarEditor from "./AvatarEditor";
+import { usePreferences } from "@/lib/client/preferences";
+import { avatarPath } from "@/lib/avatar-path";
 
 type Thumb = { id: number; thumb: string };
 type Col = { id: number; name: string; itemCount: number; items: Thumb[]; isPublic: number; isDefault: number };
 type Cmt = { id: number; content: string; created: number; itemId: number; up: number; down: number; thumb?: string };
 type Info = {
-  user: { name: string; score: number; registered: number; mark: number; inactive: number };
+  user: { name: string; score: number; registered: number; mark: number; inactive: number; avatar: string | null };
   status: string;
   background: string;
   uploads: Thumb[]; uploadCount: number; commentCount: number; followCount: number; commentLikesCount: number;
@@ -19,6 +22,7 @@ export default function Profile({ name }: { name: string }) {
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
   const me = useMe();
+  const preferences = usePreferences();
   const load = useCallback(
     () =>
       Promise.all([
@@ -47,6 +51,8 @@ export default function Profile({ name }: { name: string }) {
 
   return (
     <div className="user-page" style={bg.css ? { backgroundImage: bg.css } : undefined}>
+      <div className="profile-heading">
+      {self ? <AvatarEditor onChange={() => { void load(); }} /> : preferences.showAvatars && avatarPath(info.user.avatar) && <img className="profile-avatar" src={mediaUrl(info.user.avatar!)} alt={`Avatar von ${info.user.name}`} />}
       <h1 className="user-head">
         {info.user.name}
         {info.user.inactive ? <span className="dim user-inactive"> inaktiv</span> : null}
@@ -58,6 +64,7 @@ export default function Profile({ name }: { name: string }) {
           </span>
         )}
       </h1>
+      </div>
       <div className="user-stats">
         <div className="user-score-pane">BENIS <span className="user-score">{info.user.score}</span></div>
         <div>Gewachsen seit {since}{years > 0 ? ` (${years} Jahren)` : ""}</div>
