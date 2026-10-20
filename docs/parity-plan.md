@@ -174,3 +174,22 @@ Empfängerwechsel trennt Nachrichten und Entwürfe; simulierter Versandfehler er
 Text. Öffnen der Kommentaransicht löst keinen privaten Nachrichtenabruf aus.
 Ego bestätigt an zwei QA-Konten: Blockieren verbirgt Kommentar-/Follow-Hinweise und
 Zähler; Entblocken stellt die noch ungelesenen Hinweise wieder her.
+
+## Achte Korrektureinheit
+
+- `/tv` spielt eine nach Inhaltsfiltern und optionalen Tags eingeschränkte,
+  seedstabile Video-Playlist ab. Nur sichtbare Videos gelangen in die Pagination.
+- Automatischer und manueller Wechsel, Zurück, Pause, Ton, Geschwindigkeit,
+  native Zeit-/Lautstärkesteuerung und Vollbild; Pfeiltasten, Leertaste und M.
+- Bildfüllender Medienbereich ohne Sidebar in beiden Designs. Der Design-Switcher
+  bleibt erreichbar. Wiedergabe- und Playlistfehler haben getrennte Wiederholungen.
+- Informationsseiten lesen Instanzkonfiguration erst zur Anfragezeit; der Container-
+  Build benötigt dadurch keine laufende Datenbank.
+
+Remote: **183/183 Tests in 29 Dateien**, Typecheck und Build ohne DATABASE_URL bestanden;
+gezieltes Review nach Fehlerkorrektur freigegeben. Agent-browser bestätigt echte
+Videowiedergabe, Pause, Ton, 1.5-fache Geschwindigkeit, Vor/Zurück, mobilen Switcher
+und keinen horizontalen Überlauf bei 390×844; keine Runtimefehler. Ego bestätigt
+Medienabruf und Playlistanzeige. Referenz: pr0.app/tv beobachtet; pr0gramm.com/tv
+lieferte beim Vergleich eine leere Seite. Weitere Medienlayouts und andere oben
+vermerkte Paritätslücken sind damit nicht als erledigt erklärt.

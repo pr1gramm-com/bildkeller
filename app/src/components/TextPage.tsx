@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { connection } from "next/server";
 import { config } from "@/lib/config";
 
 /** Static information pages, mirroring the reference board's footer pages. */
 export default async function TextPage({ slug }: { slug: string }) {
+  await connection();
   const name = (await config("site.name")) as string | undefined;
   const operator = (await config("site.operator")) as string | undefined;
   const email = (await config("site.email")) as string | undefined;

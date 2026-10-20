@@ -34,4 +34,21 @@ describe("grouped and random feed queries", () => {
     expect((await get(query, { id: String(all[1]) })).items.map((i: { id: number }) => i.id)).toEqual(all.slice(1));
     expect((await get(query)).items.map((i: { id: number }) => i.id)).toEqual(all);
   });
+  it("filters TV playlists by real media, tags and visibility before paging", async () => {
+    const user = await createTestUser("tv-feed-owner");
+    const videos = [];
+    for (let index = 0; index < 3; index++) {
+      const item = await createItem(user.id, { image: `tv-${index}.mp4` }); videos.push(item.id);
+      await addTag(item.id, user.id, "tv qa");
+    }
+    await createItem(user.id, { image: "picture.png" });
+    await createItem(user.id, { image: "deleted.mp4", deleted: true });
+    await createItem(user.id, { image: "junk.mp4", junk: true });
+    await createItem(user.id, { image: "private.mp4", flags: 2 });
+    const query = "!-(x:random | x:1792521169) 'tv qa'";
+    const first = await get(query, { user: user.name, media: "video", limit: "2" });
+    const rest = await get(query, { user: user.name, media: "video", older: String(first.items[1].id) });
+    expect([...first.items, ...rest.items].map((item: { id: number }) => item.id).sort()).toEqual(videos.sort());
+    expect((await get("", { user: user.name, media: "video" })).items.map((item: { id: number }) => item.id).sort()).toEqual(videos.sort());
+  });
 });

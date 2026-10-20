@@ -108,4 +108,10 @@ describe("grouped tag queries", () => {
   it("recognizes the reference seeded random link", () => {
     expect(parseTagQuery("!-(x:random | x:1792521169)")).toEqual({ advanced: true, groups: [], randomSeed: "1792521169" });
   });
+  it("retains tag expressions after a random directive", () => {
+    expect(parseTagQuery("!-(x:random | x:1792521169) ('original content' | oc) -spam")).toMatchObject({
+      advanced: true, randomSeed: "1792521169", expression: { type: "and" },
+    });
+    expect(parseTagQuery("!-(x:random | x:1792521169) (oc").invalid).toBe(true);
+  });
 });

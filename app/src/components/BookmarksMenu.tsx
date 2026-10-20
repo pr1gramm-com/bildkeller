@@ -18,6 +18,7 @@ export default function BookmarksMenu({ onClose }: { onClose: () => void }) {
     ["/user/uploads", "u", "meine Hochlads"],
     ["/stalk", "@", "Stelzungen"],
     [searchHref("new", `!-(x:random | x:${randomSeed})`), "↝", "Zufall"],
+    ["/tv", "▶", "pr1TV"],
   ];
   return (
     <div id="bookmarks-menu" className="tip-menu bookmarks-menu">

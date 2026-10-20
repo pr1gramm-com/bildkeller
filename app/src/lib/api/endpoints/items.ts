@@ -164,6 +164,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     eq(schema.items.deleted, false),
     sql`(${schema.items.flags} & ${flags}) != 0`,
   ];
+  if (ctx.query.get("media") === "video") conds.push(sql`${schema.items.image} ~ '\\.(webm|mp4|mov)$'`);
   const expressionSql = (expression: QueryExpression): SQL => {
     if (expression.type === "term") return termSql(expression.term);
     if (expression.type === "not") return sql`not (${expressionSql(expression.child)})`;

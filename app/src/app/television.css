@@ -1,0 +1,26 @@
+html:has(.television) { overflow: hidden; }
+html:has(.television) #app-side,
+html:has(.television) #app-bottom,
+html:has(.television) #app-side-backdrop,
+html:has(.television) #footer-links { display: none; }
+html:has(.television) #main-view { width: 100%; max-width: none; margin: 0; padding: 0; }
+html:has(.television) #head { width: 100%; }
+html:has(.television) #design-toggle { z-index: 110; bottom: auto; top: calc(var(--head) + 12px); right: 12px; }
+.television { position: fixed; inset: var(--head) 0 0; background: #000; z-index: 2; }
+.television:fullscreen { inset: 0; }
+.television > video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.tv-brand { position: absolute; top: 16px; left: 16px; font-size: 24px; font-weight: 700; color: #fff9; pointer-events: none; }
+.tv-panel { position: absolute; bottom: 64px; left: 16px; right: 16px; width: fit-content; max-width: calc(100% - 32px); max-height: 50%; overflow: auto; padding: 10px; background: #000c; border-radius: 4px; opacity: .35; transition: opacity .15s; }
+.television:hover .tv-panel, .television:focus-within .tv-panel { opacity: 1; }
+.tv-search, .tv-meta, .tv-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.tv-search input { width: min(300px, 100%); min-width: 0; }
+.tv-meta, .tv-actions { margin-top: 10px; }
+.tv-meta a { color: var(--link); }
+.tv-actions select { width: auto; min-height: 44px; }
+@media (max-width: 639px) {
+  .tv-panel { left: 8px; right: 8px; max-width: calc(100% - 16px); padding: 8px; opacity: 1; font-size: 12px; }
+  .tv-search { gap: 4px; flex-wrap: nowrap; }
+  .tv-search input { flex: 1; }
+  .tv-meta, .tv-actions { gap: 6px; }
+  .tv-actions button { padding: 6px; }
+}

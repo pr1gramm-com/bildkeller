@@ -48,6 +48,7 @@ export default function AppSidebar() {
     { href: "/stalk", label: "Abos", icon: "rss" as const },
     { href: "/top/!%20s%3A600", label: "Best of", icon: "star" as const },
     { href: searchHref("new", `!-(x:random | x:${randomSeed})`), label: "Zufall", icon: "play" as const },
+    { href: "/tv", label: "pr1TV", icon: "play" as const },
     { href: "/calendar", label: "Kalender", icon: "calendar" as const },
     ...(me && preferences.showSeenNav ? [{ href: "/seen", label: "Gesehene Hochlads", icon: "play" as const }] : []),
     ...(me ? [{ href: `/user/${me.n}/uploads`, label: "Meine Uploads", icon: "user" as const }] : []),

@@ -101,8 +101,11 @@ function parseFlatTagQuery(q: string): TagQuery {
 /** Parentheses bind OR groups inside the surrounding AND expression. */
 export function parseTagQuery(q: string): TagQuery {
   if (q.length > 4096) return { advanced: q.includes("!"), groups: [], invalid: true };
-  const random = /^!\s*-\(\s*x:random\s*\|\s*x:(\d{1,13})\s*\)$/.exec(q.trim());
-  if (random) return { advanced: true, groups: [], randomSeed: random[1] };
+  const random = /^!\s*-\(\s*x:random\s*\|\s*x:(\d{1,13})\s*\)(?:\s+([\s\S]+))?$/.exec(q.trim());
+  if (random) {
+    const rest = random[2] ? parseTagQuery(random[2]) : { advanced: true, groups: [] };
+    return { ...rest, advanced: true, randomSeed: random[1] };
+  }
   const tokens = q.match(/-?~?(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')(?=\s|[|()]|$)|-\(|[|()]|[^\s|()]+/g) ?? [];
   if (!tokens.some((token) => token === "(" || token === "-(" || token === ")")) return parseFlatTagQuery(q);
   let at = 0;

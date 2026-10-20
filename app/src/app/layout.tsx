@@ -1,5 +1,6 @@
 import "./globals.css";
 import "./design-app.css";
+import "./television.css";
 import AppNav from "@/components/AppNav";
 import AppSidebar from "@/components/AppSidebar";
 import DesignToggle from "@/components/DesignToggle";
