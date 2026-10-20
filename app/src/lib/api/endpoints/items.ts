@@ -106,7 +106,12 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const preferences = user ? await getSettings(user.userId) : null;
   const history = itemHistory(preferences?.seenItems ?? "[]");
   const historyFeed = ctx.query.get("history") === "1";
+  const collectionId = int(ctx.query.get("collection"), 0);
   if (historyFeed && !user) return fail("not logged in");
+  if (collectionId) {
+    const [collection] = await db.select().from(schema.collections).where(eq(schema.collections.id, collectionId)).limit(1);
+    if (!collection || (!collection.isPublic && collection.userId !== user?.userId)) return fail("not found");
+  }
 
   const hasTag = (tag: string) =>
     sql`exists (select 1 from item_tags it join tags t on t.id = it.tag_id where it.item_id = ${schema.items.id} and t.tag = ${tag})`;
@@ -164,9 +169,17 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     if (!user?.mod && !user?.admin) conds.push(eq(schema.items.userId, user?.userId ?? 0));
   }
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
+  const collectionAdded = sql`(select ci.added from collection_items ci where ci.collection_id = ${collectionId} and ci.item_id = ${schema.items.id})`;
+  if (collectionId) conds.push(sql`exists (select 1 from collection_items ci where ci.collection_id = ${collectionId} and ci.item_id = ${schema.items.id})`);
   if (historyFeed) {
     const start = idParam ? history.indexOf(idParam) : older ? history.indexOf(older) + 1 : 0;
     conds.push(inArray(schema.items.id, start < 0 ? [] : history.slice(start)));
+  } else if (collectionId && older > 0) {
+    const cursor = idParam || older;
+    const [entry] = await db.select().from(schema.collectionItems).where(and(eq(schema.collectionItems.collectionId, collectionId), eq(schema.collectionItems.itemId, cursor))).limit(1);
+    conds.push(entry
+      ? idParam ? sql`(${collectionAdded}, ${schema.items.id}) <= (${entry.added}, ${cursor})` : sql`(${collectionAdded}, ${schema.items.id}) < (${entry.added}, ${cursor})`
+      : sql`false`);
   } else if (older > 0 && promoted === 1) {
     // Popular feed is ordered by (promoted, id): page by that pair, not by id alone.
     const cursor = idParam || older;
@@ -199,7 +212,7 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
     .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
     .where(and(...conds))
     .orderBy(
-      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
+      ...(historyFeed ? [sql`array_position(${`{${history.join(",")}}`}::bigint[], ${schema.items.id})`] : collectionId ? [desc(collectionAdded), desc(schema.items.id)] : promoted === 1 ? [desc(schema.items.promoted), desc(schema.items.id)] : [desc(schema.items.id)]),
     )
     .limit(pageSize + 1);
 

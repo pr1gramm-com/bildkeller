@@ -34,6 +34,13 @@ export default function Upload() {
   const [left, setLeft] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const uploadGeneration = useRef(0);
+
+  useEffect(() => () => { uploadGeneration.current += 1; }, []);
+  useEffect(() => {
+    if (!preview?.url.startsWith("blob:")) return;
+    return () => URL.revokeObjectURL(preview.url);
+  }, [preview]);
 
   useEffect(() => {
     if (!getMe()) router.push("/login");
@@ -46,44 +53,54 @@ export default function Upload() {
   async function store(buf: FormData) {
     const body = await (await fetch("/api/items/upload", { method: "POST", body: buf })).json();
     if (body.error) throw new Error(body.error === "ratelimited" ? "Upload-Limit erreicht" : body.error === "invalid url" ? "URL ungültig oder nicht erreichbar" : "Datei ungültig");
-    setKey(body.key);
+    return String(body.key);
   }
 
   async function pick(file: File) {
+    const generation = ++uploadGeneration.current;
+    setKey("");
     setError("");
     setBusy(true);
     setPreview({ url: URL.createObjectURL(file), video: file.type.startsWith("video") });
     const fd = new FormData();
     fd.append("image", file);
     try {
-      await store(fd);
+      const next = await store(fd);
+      if (generation === uploadGeneration.current) setKey(next);
     } catch (e) {
+      if (generation !== uploadGeneration.current) return;
       setPreview(null);
       setError(e instanceof Error ? e.message : "Fehler");
     } finally {
-      setBusy(false);
+      if (generation === uploadGeneration.current) setBusy(false);
     }
   }
 
   async function pickUrl(e: React.MouseEvent) {
     e.preventDefault();
     if (!url.trim()) return;
+    const generation = ++uploadGeneration.current;
+    setKey(""); setPreview(null);
     setError("");
     setBusy(true);
     const fd = new FormData();
     fd.append("url", url.trim());
     try {
-      await store(fd);
-      setPreview({ url: url.trim(), video: false });
+      const next = await store(fd);
+      if (generation !== uploadGeneration.current) return;
+      setKey(next);
+      setPreview({ url: url.trim(), video: /\.(mp4|webm|mov)(?:[?#]|$)/i.test(url.trim()) });
     } catch (err) {
+      if (generation !== uploadGeneration.current) return;
       setError(err instanceof Error ? err.message : "Fehler");
     } finally {
-      setBusy(false);
+      if (generation === uploadGeneration.current) setBusy(false);
     }
   }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (!key || !rating || busy) return;
     setBusy(true);
     try {
       const res = await api.post("items/post", {
@@ -105,19 +122,21 @@ export default function Upload() {
       <h1 className="pane-head">Datei hochladen</h1>
       <div className="upload-layout">
       <form className="stack pane" onSubmit={submit}>
+        <input ref={fileInput} type="file" hidden accept="image/png,image/jpeg,image/gif,video/webm,video/mp4,video/quicktime"
+          onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void pick(file); }} />
         {!preview ? (
-          <div className="dropzone" onClick={() => fileInput.current?.click()}
+          <div className="dropzone" role="button" tabIndex={0} aria-label="Datei auswählen" onClick={() => fileInput.current?.click()}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fileInput.current?.click(); } }}
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files[0]; if (f) void pick(f); }}>
             Datei auswählen oder per Drag &amp; Drop reinziehen
-            <input ref={fileInput} type="file" hidden accept="image/png,image/jpeg,image/gif,video/webm,video/mp4,video/quicktime"
-              onChange={(e) => e.target.files?.[0] && void pick(e.target.files[0])} />
           </div>
         ) : preview.video ? (
           <video src={preview.url} controls muted loop style={{ maxWidth: "100%" }} />
         ) : (
           <img src={preview.url} alt="" style={{ maxWidth: "100%" }} />
         )}
+        {preview && <button type="button" disabled={busy} onClick={() => fileInput.current?.click()}>Andere Datei auswählen</button>}
         <h3>oder URL angeben</h3>
         <div className="row">
           <input placeholder="http://" value={url} onChange={(e) => setUrl(e.target.value)} />

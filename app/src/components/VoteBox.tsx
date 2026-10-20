@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, useMe } from "@/lib/client/api";
 import { loadVotes, syncOnce } from "@/lib/client/votes";
 import Icon from "./Icon";
+import { usePreferences } from "@/lib/client/preferences";
 
 type Props = { kind: "item" | "comment"; id: number; up: number; down: number; initialVote: boolean | null; onScore?: (score: number) => void };
 
@@ -15,6 +16,8 @@ export default function VoteBox({ kind, id, up, down, initialVote, onScore }: Pr
   const currentVote = useRef<boolean | undefined>(undefined);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const preferences = usePreferences();
+  const locked = useRef(false);
 
   useEffect(() => {
     currentVote.current = initialVote ?? undefined;
@@ -34,15 +37,29 @@ export default function VoteBox({ kind, id, up, down, initialVote, onScore }: Pr
     onScore?.(counts.up - counts.down);
   }, [counts, onScore]);
 
-  async function vote(dir: boolean) {
-    if (!me || busy) return;
+  async function vote(dir: boolean, keyboard = false) {
+    if (!me || locked.current) return;
+    if ((keyboard || document.documentElement.dataset.design === "app") && !preferences.enableVoteToggle && currentVote.current === dir) return;
+    locked.current = true;
     setBusy(true); setError("");
     try {
       await api.post(kind === "item" ? "items/vote" : "comments/vote", { id, up: dir ? 1 : 0 });
       await syncOnce(true);
     } catch (e) { setError(e instanceof Error ? e.message : "Fehler"); }
-    finally { setBusy(false); }
+    finally { locked.current = false; setBusy(false); }
   }
+
+  useEffect(() => {
+    if (kind !== "item") return;
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat || target.isContentEditable || target.closest("input, textarea, select, button, [role=dialog]")) return;
+      if (e.key !== "a" && e.key !== "s") return;
+      e.preventDefault(); void vote(e.key === "a", true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   return (
     <span className={`vote vote-${kind}${mine === true ? " mine-up" : mine === false ? " mine-down" : ""}`}>

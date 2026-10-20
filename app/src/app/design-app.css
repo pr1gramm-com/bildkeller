@@ -403,6 +403,7 @@ html[data-design="app"] #design-toggle .dt-app { color: #fff; }
   html[data-design="app"] #app-nav { grid-template-columns: minmax(0, 1fr) auto auto; gap: 24px; padding: 0 64px 0 16px; }
   html[data-design="app"] #app-burger { display: inline-flex; color: #fff; position: absolute; right: 28px; top: 14px; }
   html[data-design="app"] .an-left .logo { width: 26px; overflow: hidden; }
+  html[data-design="app"] .an-left .logo svg { flex-shrink: 0; }
   html[data-design="app"] .filter-link-name { display: none; }
   html[data-design="app"] .an-center { justify-content: flex-end; gap: 24px; }
   html[data-design="app"] .an-mobile-search { display: inline-flex; }
@@ -464,3 +465,15 @@ html[data-design="app"] #design-toggle .dt-app { color: #fff; }
   html[data-design="app"] .item-info { padding: 12px 8px 0; }
   html[data-design="app"] #design-toggle { right: 8px; bottom: 68px; }
 }
+
+.app-settings-tabs, .app-settings-content { display: none; }
+html[data-design="app"] .classic-settings-tabs,
+html[data-design="app"] .classic-settings-content { display: none; }
+html[data-design="app"] .app-settings-tabs { display: flex; flex-wrap: wrap; }
+html[data-design="app"] .app-settings-content { display: block; }
+html[data-design="app"] #main-view { max-width: var(--content-max-width, none); width: 100%; justify-self: center; }
+.app-preferences { max-width: 960px; }
+.app-preferences select { margin-bottom: 16px; padding: 12px; }
+.preference-row { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+.preference-row small { display: block; margin-top: 4px; color: var(--dim); }
+.preference-row input { flex-shrink: 0; width: 20px; height: 20px; }

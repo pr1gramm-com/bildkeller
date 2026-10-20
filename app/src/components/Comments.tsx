@@ -79,13 +79,13 @@ function CommentNode({ n, itemId, op, onChange, favorites, base, depth = 0 }: { 
   const hidden = count(n);
   const own = me?.n.toLowerCase() === n.name.toLowerCase();
   const faved = favorites.includes(n.id);
-  const longText = n.content.length > 500 || n.content.split("\n").length > 8;
+  const longText = n.content.length > 400 || n.content.split("\n").length > 8;
 
   useEffect(() => {
-    setOpen(!(n.blocked && preferences.blockedCommentMode !== "show") && !(preferences.hideDownvotedComments && n.up < n.down));
-  }, [n.blocked, preferences.blockedCommentMode, preferences.hideDownvotedComments, n.up, n.down]);
+    setOpen(!(n.blocked && preferences.blockedCommentMode !== "show") && !(preferences.hideDownvotedComments && !own && n.up < n.down));
+  }, [n.blocked, preferences.blockedCommentMode, preferences.hideDownvotedComments, n.up, n.down, own]);
   useEffect(() => {
-    if (preferences.autoCollapseDeepComments && depth >= 5) setFolded(true);
+    setFolded(preferences.autoCollapseDeepComments && depth >= 3);
   }, [preferences.autoCollapseDeepComments, depth]);
 
   async function report() {
@@ -115,6 +115,7 @@ function CommentNode({ n, itemId, op, onChange, favorites, base, depth = 0 }: { 
     catch (e) { failed(e); }
   }
 
+  if (n.blocked && preferences.blockedCommentMode === "hide") return null;
   return (
     <div className={`comment-box${preferences.colorCommentIndentationLines ? " colored-indent" : ""}`} id={`comment${n.id}`}>
       <div className="comment">

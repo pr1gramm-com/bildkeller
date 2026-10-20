@@ -4,7 +4,7 @@ import Feed from "@/components/Feed";
 import { api, getMe } from "@/lib/client/api";
 
 /** "Stelzungen": uploads of the users this account follows. */
-export default function Stalk() {
+export default function Stalk({ base = "/stalk", startAt }: { base?: string; startAt?: number }) {
   const [names, setNames] = useState<string[] | null>(null);
   useEffect(() => {
     if (!getMe()) { setNames([]); return; }
@@ -22,7 +22,7 @@ export default function Stalk() {
   return (
     <>
       <h1 className="pane-head">Stelzungen</h1>
-      <Feed users={names.join(",")} base="/stalk" />
+      <Feed users={names.join(",")} base={base} startAt={startAt} />
     </>
   );
 }

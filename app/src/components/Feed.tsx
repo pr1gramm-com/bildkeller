@@ -24,10 +24,11 @@ type Props = {
   /** Deep link: the first page of the stream starts at this item id. */
   startAt?: number;
   history?: boolean;
+  collection?: number;
 };
 
 /** Thumbnail grid; a clicked post opens inline below its row (like pr0gramm.com), the URL follows via the History API. */
-export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt, history = false }: Props) {
+export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt, history = false, collection }: Props) {
   const [items, setItems] = useState<ApiItem[]>([]);
   const [atEnd, setAtEnd] = useState(false);
   const [error, setError] = useState("");
@@ -57,6 +58,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
         const params: Record<string, string | number> = { flags: flags ?? 1, promoted, show_junk: chronicle || (!promoted && !preferences.junkSeparation) ? 1 : 0 };
         if (junk) params.junk = 1;
         if (history) params.history = 1;
+        if (collection) params.collection = collection;
         if (older) params.older = older;
         else if (startAt) params.id = startAt;
         if (tags) params.tags = tags;
@@ -73,7 +75,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
         if (mine === gen.current) loading.current = false;
       }
     },
-    [flags, promoted, junk, tags, user, users, chronicle, startAt, history, preferences.junkSeparation, preferences.markSeenItems],
+    [flags, promoted, junk, tags, user, users, chronicle, startAt, history, collection, preferences.junkSeparation, preferences.markSeenItems],
   );
 
   useEffect(() => {
@@ -198,7 +200,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
   return (
     <>
       <div className="grid" ref={grid}>{nodes}</div>
-      {items.length === 0 && atEnd && <p className="dim">Nichts gefunden.</p>}
+      {items.length === 0 && atEnd && openId === null && <p className="dim">Nichts gefunden.</p>}
       {!atEnd && <div ref={sentinel} className="sentinel" />}
     </>
   );

@@ -4,6 +4,7 @@ import { api, getMe, type Me } from "@/lib/client/api";
 import { BACKGROUNDS } from "@/lib/backgrounds";
 import { publishPreferences } from "@/lib/client/preferences";
 import type { Settings as SiteSettings } from "@/lib/site-settings";
+import AppPreferences from "./AppPreferences";
 
 const TABS = [
   { href: "/settings/site", label: "Seite" },
@@ -12,6 +13,11 @@ const TABS = [
   { href: "/settings/collections", label: "Kuratierte Sammlungen" },
   { href: "/settings/notifications", label: "Benachrichtigungen" },
   { href: "/settings/apps", label: "Autorisierte Apps" },
+];
+const APP_TABS = [
+  ["account", "Dein Account"], ["notifications", "Benachrichtigungen"], ["appearance", "Darstellung"],
+  ["behavior", "Verhalten"], ["comments", "Kommentare"], ["privacy", "Sicherheit"],
+  ["filters", "Blockierungen"], ["invites", "Einladungen"], ["collections", "Sammlungen"], ["apps", "Autorisierte Apps"],
 ];
 
 const THEMES = [
@@ -90,16 +96,20 @@ export default function Settings({ tab }: { tab: string }) {
     <>
       <h1 className="pane-head">Einstellungen</h1>
       <div className="tab-bar">
-        <nav>
+        <nav className="classic-settings-tabs">
           {TABS.map((t) => (
             <a key={t.href} href={t.href} className={tab === t.href.split("/").pop() ? "active" : ""}>{t.label}</a>
           ))}
         </nav>
+        <nav className="app-settings-tabs">
+          {APP_TABS.map(([key, label]) => <a key={key} href={`/settings/${key}`} className={(tab === "site" ? "appearance" : tab) === key ? "active" : ""}>{label}</a>)}
+        </nav>
         <button className="action" onClick={logout}>abmelden</button>
       </div>
       <div className="pane">
+        {["site", "appearance", "behavior", "comments", "privacy", "filters"].includes(tab) && <div className={tab === "site" ? "app-settings-content" : undefined}><AppPreferences tab={tab === "site" ? "appearance" : tab} settings={s} save={save} /></div>}
         {tab === "site" && (
-          <>
+          <div className="classic-settings-content">
             <h2 className="settings-heading">Allgemeine Einstellungen</h2>
             <section className="stack">
               <h3>Meine Kommentar-Favoriten sind sichtbar für</h3>
@@ -165,7 +175,7 @@ export default function Settings({ tab }: { tab: string }) {
                 </button>
               ))}
             </div>
-          </>
+          </div>
         )}
 
         {tab === "account" && (

@@ -14,12 +14,21 @@ export function feedRoute(feed: FeedName, segments: string[] = []) {
 }
 
 export function itemIdFromPath(path: string): number | null {
-  const match = /^\/(?:item|new|top|junk)\/(?:[^/]+\/)?(\d+)(?::comment\d+)?$/.exec(path);
-  return match ? Number(match[1]) : null;
+  const match = /^\/(?:item|new|top|junk)\/(?:[^/]+\/)?(\d+)(?::comment\d+)?$/.exec(path)
+    ?? /^\/(?:seen|stalk|chronicle|user\/[^/]+\/(?:uploads|collections\/\d+))\/(\d+)(?::comment\d+)?$/.exec(path);
+  const id = match ? Number(match[1]) : 0;
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 export function itemHref(base: string, id: number): string {
-  return /^\/(new|top|junk)(\/|$)/.test(base) ? `${base}/${id}` : `/item/${id}`;
+  return /^\/(new|top|junk)(\/|$)/.test(base) || /^\/(?:seen|stalk|chronicle|user\/[^/]+\/(?:uploads|collections\/\d+))$/.test(base) ? `${base}/${id}` : `/item/${id}`;
+}
+
+export function contextRoute(base: string, segments: string[] = []) {
+  if (segments.length === 0) return { base, startAt: undefined };
+  if (segments.length !== 1 || !/^\d+(?::comment\d+)?$/.test(segments[0])) return null;
+  const startAt = Number(segments[0].split(":")[0]);
+  return Number.isSafeInteger(startAt) && startAt > 0 ? { base, startAt } : null;
 }
 
 export function searchHref(feed: FeedName, tags: string): string {

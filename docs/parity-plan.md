@@ -84,3 +84,27 @@ Browsernachweise liegen lokal unter `.qa/parity-2026-10-20/` (git-ignoriert).
 Geprüft wurden unter anderem Suchlesezeichen anlegen/neu laden/entfernen,
 Beitrags-Deep-Link/Neu laden/Schließen und mobile Zahlensuche im Produktionsbuild.
 Die automatisierten Tests ersetzen keine vollständige Browserabnahme der übrigen Flows.
+
+## Dritte Korrektureinheit
+
+- Sammlungsfeeds paginieren in Hinzufügungsreihenfolge `(added, id)` und prüfen
+  öffentlichen Zugriff beziehungsweise Eigentümerschaft.
+- Upload-, Sammlungs-, Verlaufs-, Abo- und Chronikfeeds behalten ihren Kontext in
+  Beitrags- und Kommentar-URLs, auch nach Neuladen und Schließen.
+- Ein Dateiwechsel verwirft sofort den bisherigen Staging-Schlüssel; verspätete
+  Uploadantworten können keine neuere Auswahl überschreiben. Objekt-URLs werden
+  freigegeben; Dateiauswahl ist per Tastatur erreichbar.
+- App-Einstellungen haben zehn eigene Navigationsbereiche; neue Optionsseiten
+  für Darstellung, Verhalten, Kommentare, Sicherheit und Blockierungen sind angebunden.
+  Seitenbreite, Benutzer-/Tagblockierungen und Kommentar-Blockmodi wirken tatsächlich.
+- Die beobachteten Kommentargrenzen sind 400 Zeichen beziehungsweise Tiefe 3;
+  negativ bewertete eigene Kommentare bleiben sichtbar.
+- Vote-Toggle steuert App-Votes und Tastaturvotes; Eingabefelder bleiben unberührt.
+- Mobiles Logo bleibt in Originalgröße, statt auf die kleine Ausschnittbreite zu schrumpfen.
+
+Remote-Typecheck, **156/156 Tests in 22 Dateien** und Produktionsbuild bestanden;
+gezieltes Diff-Review freigegeben. Ego bestätigt zehn Einstellungsbereiche,
+Seitenbreite nach Reload und Sammlungsbeitrag → Reload → Escape zur Sammlung.
+Agent-browser bestätigt: Nach fehlgeschlagenem Ersatzupload ist die alte Datei nicht
+mehr absendbar. Die weiteren Layoutvarianten, Avatarfunktionen, besondere Feeds,
+Suchgruppen und vollständige Abnahme aller Imageboard-Flows bleiben offen.
