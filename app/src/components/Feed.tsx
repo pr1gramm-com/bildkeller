@@ -13,6 +13,12 @@ type Props = {
   junk?: boolean;
   tags?: string;
   user?: string;
+  /** Comma separated uploaders (the "Stelzungen" feed). */
+  users?: string;
+  /** Page the inline viewer returns to when it is closed. */
+  base?: string;
+  /** Chronicle: every upload, including the ones marked as junk. */
+  chronicle?: boolean;
   /** Deep link: the first page of the stream starts at this item id. */
   startAt?: number;
 };
@@ -20,7 +26,7 @@ type Props = {
 const ITEM_PATH = /^\/item\/(\d+)$/;
 
 /** Thumbnail grid; a clicked post opens inline below its row (like pr0gramm.com), the URL follows via the History API. */
-export default function Feed({ promoted = 0, junk = false, tags = "", user = "", startAt }: Props) {
+export default function Feed({ promoted = 0, junk = false, tags = "", user = "", users = "", chronicle = false, base: baseProp, startAt }: Props) {
   const [items, setItems] = useState<ApiItem[]>([]);
   const [atEnd, setAtEnd] = useState(false);
   const [error, setError] = useState("");
@@ -35,7 +41,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
   const opened = useRef<HTMLDivElement>(null);
   const pushed = useRef(false); // true while the open post owns a history entry that we pushed from the grid
 
-  const base = promoted ? "/top" : "/";
+  const base = baseProp ?? (promoted ? "/top" : "/");
   const m = ITEM_PATH.exec(path);
   const openId = m ? Number(m[1]) : null;
 
@@ -45,11 +51,13 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
       loading.current = true;
       const mine = gen.current;
       try {
-        const params: Record<string, string | number> = { flags: flags ?? 1, promoted, show_junk: junk ? 1 : 0 };
+        const params: Record<string, string | number> = { flags: flags ?? 1, promoted, show_junk: chronicle ? 1 : 0 };
+        if (junk) params.junk = 1;
         if (older) params.older = older;
         else if (startAt) params.id = startAt;
         if (tags) params.tags = tags;
         if (user) params.user = user;
+        if (users) params.users = users;
         const res = await api.get("items/get", params);
         if (mine !== gen.current) return;
         setItems((prev) => (older ? [...prev, ...res.items] : res.items));
@@ -60,7 +68,7 @@ export default function Feed({ promoted = 0, junk = false, tags = "", user = "",
         if (mine === gen.current) loading.current = false;
       }
     },
-    [flags, promoted, junk, tags, user, startAt],
+    [flags, promoted, junk, tags, user, users, chronicle, startAt],
   );
 
   useEffect(() => {

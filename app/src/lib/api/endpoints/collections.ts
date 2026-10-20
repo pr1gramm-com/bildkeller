@@ -1,13 +1,13 @@
 import { ApiError } from "@/lib/api/envelope";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
 import { assertNonce } from "@/lib/auth";
-import { collectionsOf, userByName } from "@/lib/collections";
+import { collectionsOf, toApiCollection, userByName } from "@/lib/collections";
 import { int } from "@/lib/params";
 import { limit } from "@/lib/limiter";
-import { visibleItem } from "@/lib/visibility";
+import { itemVisible, visibleItem } from "@/lib/visibility";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -38,6 +38,20 @@ async function canWrite(id: number, userId: number): Promise<boolean> {
 
 register("collections.get", async (ctx) => {
   if (!ctx.user) return fail("not logged in");
+  const single = int(ctx.query.get("id") ?? ctx.query.get("collectionId"), 0);
+  if (single > 0) {
+    const c = await load(single);
+    if (!c) return fail("not found");
+    if (!c.isPublic && c.userId !== ctx.user.userId) return fail("forbidden");
+    const items = await db
+      .select({ id: schema.items.id, thumb: schema.items.thumb, preview: schema.items.preview, flags: schema.items.flags })
+      .from(schema.collectionItems)
+      .innerJoin(schema.items, eq(schema.items.id, schema.collectionItems.itemId))
+      .where(and(eq(schema.collectionItems.collectionId, c.id), itemVisible(ctx.user)))
+      .orderBy(desc(schema.collectionItems.added))
+      .limit(50);
+    return ok({ collections: [{ ...(await toApiCollection(c, ctx.user)), items }] });
+  }
   return ok({ collections: await collectionsOf(ctx.user.userId, true, ctx.user), curatorCollections: [] });
 });
 

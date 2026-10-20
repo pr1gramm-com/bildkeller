@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ok, fail } from "@/lib/api/envelope";
 import { getSessionUser } from "@/lib/auth";
+import { fetchRemote } from "@/lib/fetchurl";
 import { storeUpload } from "@/lib/media";
 import { purgeStaleUploads, uploadQuota } from "@/lib/ratelimit";
 
@@ -19,10 +20,19 @@ export async function POST(req: NextRequest) {
   }
   const form = await req.formData().catch(() => null);
   const file = form?.get("image");
-  if (!(file instanceof File)) return NextResponse.json(fail("no file"));
-  if (file.size > max) return NextResponse.json(fail("too large"));
-
-  const buf = Buffer.from(await file.arrayBuffer());
+  const remoteUrl = typeof form?.get("url") === "string" ? String(form.get("url")) : "";
+  let buf: Buffer;
+  if (remoteUrl) {
+    try {
+      buf = await fetchRemote(remoteUrl, max);
+    } catch {
+      return NextResponse.json(fail("invalid url"));
+    }
+  } else {
+    if (!(file instanceof File)) return NextResponse.json(fail("no file"));
+    if (file.size > max) return NextResponse.json(fail("too large"));
+    buf = Buffer.from(await file.arrayBuffer());
+  }
   try {
     const media = await storeUpload(buf);
     const { db, schema } = await import("@bildkeller/db");

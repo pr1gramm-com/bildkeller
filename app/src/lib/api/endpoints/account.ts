@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { and, eq, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { ApiError, fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
@@ -107,6 +107,61 @@ register("user.changepassword", async (ctx) => {
   // Sign out every other device.
   await db.delete(schema.sessions).where(and(eq(schema.sessions.userId, user.userId), ne(schema.sessions.token, user.id)));
   return ok({});
+});
+
+register("user.changename", async (ctx) => {
+  const user = me(ctx);
+  const name = (ctx.form.name ?? "").trim();
+  if (!/^[\p{L}\p{N}_-]{2,32}$/u.test(name)) return fail("invalid name");
+  const taken = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(sql`lower(${schema.users.name}) = ${name.toLowerCase()}`)
+    .limit(1);
+  if (taken.length > 0) return fail("name taken");
+  await db.update(schema.users).set({ name }).where(eq(schema.users.id, user.userId));
+  return ok({ name });
+});
+
+register("user.changeemail", async (ctx) => {
+  const user = me(ctx);
+  const email = (ctx.form.email ?? "").trim();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return fail("invalid email");
+  await db.update(schema.users).set({ email }).where(eq(schema.users.id, user.userId));
+  return ok({});
+});
+
+/** Self-imposed lock-out: the profile is marked inactive, the account stays usable. */
+register("user.selfban", async (ctx) => {
+  const user = me(ctx);
+  const days = Number(ctx.form.days ?? 0);
+  if (!Number.isFinite(days) || days <= 0 || days > 180) return fail("invalid");
+  const row = (await db.select().from(schema.users).where(eq(schema.users.id, user.userId)).limit(1))[0];
+  if (!row || !(await verifyPassword(ctx.form.password ?? "", row.passwordHash))) return fail("invalid credentials");
+  await db
+    .update(schema.users)
+    .set({ inactiveUntil: now() + Math.round(days * 86400) })
+    .where(eq(schema.users.id, user.userId));
+  return ok({ until: now() + Math.round(days * 86400) });
+});
+
+register("user.invitelist", async (ctx) => {
+  if (!ctx.user) return fail("not logged in");
+  const rows = await db
+    .select()
+    .from(schema.invites)
+    .where(eq(schema.invites.createdBy, ctx.user.userId))
+    .orderBy(desc(schema.invites.id))
+    .limit(50);
+  return ok({ invites: rows.map((r) => ({ code: r.code, used: Boolean(r.usedBy), created: r.created })) });
+});
+
+register("user.setbackground", async (ctx) => {
+  const user = me(ctx);
+  const key = (ctx.form.background ?? "").trim();
+  if (key.length > 40) return fail("invalid");
+  await db.update(schema.users).set({ background: key || null }).where(eq(schema.users.id, user.userId));
+  return ok({ background: key });
 });
 
 register("contact.report", async (ctx) => {

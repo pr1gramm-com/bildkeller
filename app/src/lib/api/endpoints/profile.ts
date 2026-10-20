@@ -9,6 +9,7 @@ import { collectionsOf, toApiCollection, userByName } from "@/lib/collections";
 import { effectiveFlags } from "@/lib/flags";
 import { int } from "@/lib/params";
 import { itemVisible } from "@/lib/visibility";
+import { userStatus } from "@/lib/status";
 import type { ApiCtx, SessionUser } from "@/lib/types";
 
 const now = () => Math.floor(Date.now() / 1000);
@@ -119,15 +120,16 @@ register("profile.info", async (ctx) => {
       mark: target.mark,
       banned: 0,
       bannedUntil: target.bannedUntil,
+      inactive: target.inactiveUntil && target.inactiveUntil > now() ? 1 : 0,
       commentDelete: 0,
       itemDelete: 0,
-      inactive: 0,
       canReceiveMessages: true,
       avatar: null,
       avatarId: 0,
     },
     badges: [],
-    background: null,
+    background: target.background ?? "",
+    status: userStatus(target.created).label,
     blocked: isBlocked > 0,
     collectedCount,
     collections,

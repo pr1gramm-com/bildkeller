@@ -1,0 +1,1 @@
+ALTER TABLE "notifications" ADD COLUMN "content" text DEFAULT '' NOT NULL;

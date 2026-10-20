@@ -1,56 +1,83 @@
 export type MediaExclude = "sound" | "video" | "repost";
 
+export type Term =
+  | { kind: "tag"; value: string; exact: boolean; exclude: boolean }
+  | { kind: "user"; value: string; exclude: boolean }
+  | { kind: "score"; value: number; exclude: boolean }
+  | { kind: "mark"; value: number; exclude: boolean }
+  | { kind: "date"; from: number | null; to: number | null; exclude: boolean }
+  | { kind: "res"; width: number; height: number; exclude: boolean }
+  | { kind: "media"; value: MediaExclude };
+
 export type TagQuery = {
   advanced: boolean;
-  include: string[];
-  exclude: string[];
-  score: number | null;
-  mediaExclude: MediaExclude[];
-  markExclude: string[];
-  user: string | null;
+  /** OR of AND-groups: groups are separated by "|", terms inside a group are ANDed. */
+  groups: Term[][];
 };
 
-const MEDIA = new Set<string>(["sound", "video", "repost"]);
-
-/** Parses the reference-board query grammar: `! tag -tag -"video" s:100 -m:ftb u:name`. */
+/** The reference board's query grammar:
+ * `! tag -tag ~tag -"video" s:100 -s:50 u:name -u:other m:3 r:1920x1080 d:2024-01-01..2024-12-31`
+ */
 export function parseTagQuery(q: string): TagQuery {
-  const out: TagQuery = {
-    advanced: false,
-    include: [],
-    exclude: [],
-    score: null,
-    mediaExclude: [],
-    markExclude: [],
-    user: null,
-  };
+  const groups: Term[][] = [[]];
+  let advanced = false;
+
+  const push = (t: Term) => groups[groups.length - 1].push(t);
+  const last = groups[groups.length - 1];
+
   for (const raw of q.trim().split(/\s+/).filter(Boolean)) {
     if (raw === "!") {
-      out.advanced = true;
+      advanced = true;
       continue;
     }
-    const quoted = raw.match(/^-"(.+)"$/);
-    if (quoted && MEDIA.has(quoted[1])) {
-      out.mediaExclude.push(quoted[1] as MediaExclude);
+    if (raw === "|") {
+      groups.push([]);
       continue;
     }
-    const score = raw.match(/^s:(\d+)$/);
+    const exclude = raw.startsWith("-");
+    const body = exclude ? raw.slice(1) : raw;
+
+    const quoted = body.match(/^"(.+)"$/);
+    if (quoted && ["sound", "video", "repost"].includes(quoted[1])) {
+      push({ kind: "media", value: quoted[1] as MediaExclude });
+      continue;
+    }
+    const score = body.match(/^s:(\d+)$/);
     if (score) {
-      out.score = Number(score[1]);
+      push({ kind: "score", value: Number(score[1]), exclude });
       continue;
     }
-    const mark = raw.match(/^-m:(.+)$/);
+    const mark = body.match(/^m:(\d+)$/);
     if (mark) {
-      out.markExclude.push(mark[1]);
+      push({ kind: "mark", value: Number(mark[1]), exclude });
       continue;
     }
-    const user = raw.match(/^u:(.+)$/);
+    const res = body.match(/^r:(\d+)x(\d+)$/);
+    if (res) {
+      push({ kind: "res", width: Number(res[1]), height: Number(res[2]), exclude });
+      continue;
+    }
+    const date = body.match(/^d:(\d{4}-\d{2}-\d{2})(?:\.\.(\d{4}-\d{2}-\d{2}))?$/);
+    if (date) {
+      const from = Date.parse(`${date[1]}T00:00:00Z`) / 1000;
+      const to = date[2] ? Date.parse(`${date[2]}T23:59:59Z`) / 1000 : null;
+      push({ kind: "date", from, to, exclude });
+      continue;
+    }
+    const user = body.match(/^u:(.+)$/);
     if (user) {
-      out.user = user[1];
+      push({ kind: "user", value: user[1].trim(), exclude });
       continue;
     }
-    if (raw.includes(":")) continue; // unknown prefix: ignored
-    if (raw.startsWith("-")) out.exclude.push(raw.slice(1).toLowerCase());
-    else out.include.push(raw.toLowerCase());
+    if (body.includes(":")) continue; // unknown prefix: ignored
+    if (body.startsWith("~")) {
+      const t = body.slice(1).toLowerCase();
+      if (t) push({ kind: "tag", value: t, exact: false, exclude });
+      continue;
+    }
+    const t = body.toLowerCase();
+    if (t) push({ kind: "tag", value: t, exact: true, exclude });
   }
-  return out;
+
+  return { advanced, groups: groups.filter((g) => g.length > 0) };
 }

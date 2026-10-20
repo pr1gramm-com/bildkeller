@@ -30,6 +30,9 @@ export const DEFAULT_SETTINGS = {
   showBlockActions: true,
   showAvatars: true,
   showThumbnailFlags: false,
+  likesArePublic: false,
+  mediaServer: "default",
+  deviceMail: true,
 } as const;
 
 export type Settings = { -readonly [K in keyof typeof DEFAULT_SETTINGS]: (typeof DEFAULT_SETTINGS)[K] extends boolean ? boolean : (typeof DEFAULT_SETTINGS)[K] extends number ? number : string };

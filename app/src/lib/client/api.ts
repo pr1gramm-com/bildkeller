@@ -1,5 +1,6 @@
-export class ApiError extends Error {}
+import { useEffect, useState } from "react";
 
+export class ApiError extends Error {}
 export type Me = { id: string; n: string; m: string; v: string; a: string } | null;
 
 /** Reads the (non-httpOnly) `me` cookie the server sets at login. */
@@ -14,6 +15,13 @@ export function getMe(): Me {
   } catch {
     return null;
   }
+}
+
+/** The session, known after hydration only: the cookie is not visible while the server renders. */
+export function useMe(): Me {
+  const [me, setMe] = useState<Me>(null);
+  useEffect(() => setMe(getMe()), []);
+  return me;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

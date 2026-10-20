@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { api, getMe } from "@/lib/client/api";
+import { api, useMe } from "@/lib/client/api";
 import { loadVotes, syncOnce } from "@/lib/client/votes";
 import Icon from "./Icon";
 
@@ -11,7 +11,7 @@ export default function VoteBox({ kind, id, up, down, onScore }: Props) {
   const key = `${kind === "item" ? "i" : "c"}:${id}`;
   const [mine, setMine] = useState<boolean | undefined>(undefined);
   const [counts, setCounts] = useState({ up, down });
-  const me = getMe();
+  const me = useMe();
 
   useEffect(() => setMine(loadVotes()[key]), [key]);
   useEffect(() => setCounts({ up, down }), [up, down]);

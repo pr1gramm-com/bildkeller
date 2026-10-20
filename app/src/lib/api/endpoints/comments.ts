@@ -50,6 +50,12 @@ register("comments.post", async (ctx) => {
       notified.add(parent.userId);
     }
   }
+  // The owner of the post is notified about every new comment on it.
+  const owner = (await db.select({ userId: schema.items.userId }).from(schema.items).where(eq(schema.items.id, itemId)).limit(1))[0];
+  if (owner && !notified.has(owner.userId)) {
+    await notify(owner.userId, "comment", c.id, user.userId);
+    notified.add(owner.userId);
+  }
   for (const name of new Set([...content.matchAll(/@([\w-]{2,32})/g)].map((m) => m[1].toLowerCase()))) {
     const target = (
       await db.select().from(schema.users).where(sql`lower(${schema.users.name}) = ${name}`).limit(1)

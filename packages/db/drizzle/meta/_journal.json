@@ -15,6 +15,20 @@
       "when": 1791918108480,
       "tag": "0001_boring_ted_forrester",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792515767150,
+      "tag": "0002_odd_gamma_corps",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792515840635,
+      "tag": "0003_special_malice",
+      "breakpoints": true
     }
   ]
 }

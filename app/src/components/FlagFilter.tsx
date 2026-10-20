@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { FLAGS, useFlags, writeFlags } from "@/lib/client/flags";
+import Icon from "./Icon";
 
 const DESC: Record<string, string> = {
   SFW: "Safe for work",
@@ -38,6 +39,7 @@ export default function FlagFilter() {
   return (
     <div className="flagfilter">
       <span id="filter-link" role="button" tabIndex={0} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+        <span className="filter-ico"><Icon name="filter" size={18} /></span>
         <span id="filter-link-flag">f</span>
         <span id="filter-link-name">{selected}</span>
       </span>

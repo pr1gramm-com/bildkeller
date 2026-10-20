@@ -1,7 +1,8 @@
 import { ApiError } from "@/lib/api/envelope";
+import { createHash } from "node:crypto";
 import { rm } from "node:fs/promises";
 import path from "node:path";
-import { and, asc, desc, eq, gt, lt, sql, notInArray } from "drizzle-orm";
+import { and, asc, desc, eq, gte, gt, inArray, lt, or, sql, notInArray, type SQL } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { ok, fail } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
@@ -11,8 +12,10 @@ import { effectiveFlags } from "@/lib/flags";
 import { wilson } from "@/lib/wilson";
 import { maybePromote } from "@/lib/promote";
 import { assertNonce } from "@/lib/auth";
+import { fetchRemote } from "@/lib/fetchurl";
+import { limit } from "@/lib/limiter";
 import { uploadQuota } from "@/lib/ratelimit";
-import { parseTagQuery } from "@/lib/tagquery";
+import { parseTagQuery, type Term } from "@/lib/tagquery";
 import { logEvent } from "@/lib/sync";
 import { visibleComment, visibleItem } from "@/lib/visibility";
 import { addTag } from "@/lib/tags";
@@ -92,30 +95,79 @@ export async function itemsGet(ctx: ApiCtx) {  const user = ctx.user;
   const idParam = int(ctx.query.get("id"), 0);
   const older = idParam > 0 ? idParam + 1 : int(ctx.query.get("older"), 0);
   const pageSize = Math.min(Math.max(int(ctx.query.get("limit"), MAX_PAGE), 1), MAX_PAGE);
+  const junkOnly = ctx.query.get("junk") === "1";
   const tq = parseTagQuery(ctx.query.get("tags") ?? "");
-  const userName = ctx.query.get("user") ?? tq.user;
+  const userList = ctx.query.get("users")
+    ? ctx.query.get("users")!.split(",").map((u) => u.trim()).filter(Boolean)
+    : [];
+  const singleUser = (ctx.query.get("user") ?? "").trim();
 
   const hasTag = (tag: string) =>
     sql`exists (select 1 from item_tags it join tags t on t.id = it.tag_id where it.item_id = ${schema.items.id} and t.tag = ${tag})`;
+  const hasTagLike = (tag: string) =>
+    sql`exists (select 1 from item_tags it join tags t on t.id = it.tag_id where it.item_id = ${schema.items.id} and t.tag ilike ${`%${tag}%`})`;
 
+  // One criterion per term; "exclude" terms are negated inside their AND-group.
+  const termSql = (t: Term) => {
+    switch (t.kind) {
+      case "tag":
+        return t.exclude ? sql`not ${t.exact ? hasTag(t.value) : hasTagLike(t.value)}` : t.exact ? hasTag(t.value) : hasTagLike(t.value);
+      case "user":
+        return t.exclude
+          ? sql`lower(${schema.users.name}) != ${t.value.toLowerCase()}`
+          : sql`lower(${schema.users.name}) = ${t.value.toLowerCase()}`;
+      case "score":
+        return t.exclude
+          ? sql`(${schema.items.up} - ${schema.items.down}) < ${t.value}`
+          : sql`(${schema.items.up} - ${schema.items.down}) >= ${t.value}`;
+      case "mark":
+        return t.exclude
+          ? sql`${schema.users.mark} != ${t.value}`
+          : sql`${schema.users.mark} >= ${t.value}`;
+      case "date": {
+        const inRange =
+          t.from !== null && t.to !== null
+            ? sql`${schema.items.created} between ${t.from} and ${t.to}`
+            : t.from !== null
+              ? sql`${schema.items.created} >= ${t.from}`
+              : sql`${schema.items.created} <= ${t.to}`;
+        return t.exclude ? sql`not (${inRange})` : inRange;
+      }
+      case "res":
+        return t.exclude
+          ? sql`(${schema.items.width} < ${t.width} or ${schema.items.height} < ${t.height})`
+          : sql`(${schema.items.width} >= ${t.width} and ${schema.items.height} >= ${t.height})`;
+      case "media":
+        if (t.value === "video") return sql`${schema.items.image} !~ '\\.(webm|mp4|mov)$'`;
+        if (t.value === "sound") return eq(schema.items.audio, false);
+        return eq(schema.items.repost, false);
+    }
+  };
+
+  const groups = tq.groups.map((g) => and(...g.map(termSql)) as SQL).filter(Boolean);
   const conds = [
-    ...tq.include.map(hasTag),
-    ...tq.exclude.map((t) => sql`not ${hasTag(t)}`),
     eq(schema.items.deleted, false),
     sql`(${schema.items.flags} & ${flags}) != 0`,
   ];
-  if (tq.score !== null) conds.push(sql`(${schema.items.up} - ${schema.items.down}) >= ${tq.score}`);
-  if (tq.mediaExclude.includes("video")) conds.push(sql`${schema.items.image} !~ '\\.(webm|mp4|mov)$'`);
-  if (tq.mediaExclude.includes("sound")) conds.push(eq(schema.items.audio, false));
-  if (tq.mediaExclude.includes("repost")) conds.push(eq(schema.items.repost, false));
-  if (!showJunk) conds.push(eq(schema.items.junk, false));
+  if (groups.length === 1) conds.push(groups[0]);
+  else if (groups.length > 1) conds.push(or(...groups) as SQL);
+  if (!showJunk && !junkOnly) conds.push(eq(schema.items.junk, false));
+  if (junkOnly) {
+    // The trash holds your own junk posts; moderators see everyone's.
+    conds.push(eq(schema.items.junk, true));
+    if (!user?.mod && !user?.admin) conds.push(eq(schema.items.userId, user?.userId ?? 0));
+  }
   if (promoted === 1) conds.push(gt(schema.items.promoted, 0));
   if (older > 0 && promoted === 1 && idParam === 0) {
     // Popular feed is ordered by (promoted, id): page by that pair, not by id alone.
     const cur = (await db.select({ p: schema.items.promoted }).from(schema.items).where(eq(schema.items.id, older)).limit(1))[0];
     conds.push(cur ? sql`(${schema.items.promoted}, ${schema.items.id}) < (${cur.p}, ${older})` : lt(schema.items.id, older));
   } else if (older > 0) conds.push(lt(schema.items.id, older));
-  if (userName) conds.push(sql`lower(${schema.users.name}) = ${userName.toLowerCase()}`);
+  if (userList.length > 0) {
+    conds.push(inArray(sql`lower(${schema.users.name})`, userList.map((u) => u.toLowerCase())));
+  } else if (singleUser) {
+    conds.push(sql`lower(${schema.users.name}) = ${singleUser.toLowerCase()}`);
+  }
   const blocked = await blockedUserIds(user);
   if (blocked.length > 0) conds.push(notInArray(schema.items.userId, blocked));
 
@@ -232,6 +284,13 @@ export async function itemsInfo(ctx: ApiCtx) {
     .orderBy(asc(schema.comments.id));
 
   const blocked = new Set(await blockedUserIds(ctx.user));
+  const favorites = ctx.user
+    ? await db
+        .select({ commentId: schema.commentFavorites.commentId })
+        .from(schema.commentFavorites)
+        .where(eq(schema.commentFavorites.userId, ctx.user.userId))
+        .then((rows) => rows.map((r) => r.commentId))
+    : [];
   return ok({
     tags: tagRows.map((t) => ({ id: t.id, tag: t.tag, confidence: wilson(t.up, t.down) })),
     comments: commentRows.map((c) => ({
@@ -249,6 +308,7 @@ export async function itemsInfo(ctx: ApiCtx) {
       blocked: blocked.has(c.comment.userId),
     })),
     views: Number(viewsRows[0]?.total ?? 0),
+    favorites,
   });
 }
 
@@ -325,6 +385,17 @@ register("items.post", async (ctx) => {
   }
 
   await db.delete(schema.uploads).where(eq(schema.uploads.key, key));
+  const comment = (ctx.form.comment ?? "").trim();
+  if (comment && comment.length <= 2000) {
+    await db.insert(schema.comments).values({ itemId: item.id, parentId: 0, userId: user.userId, content: comment, created: Math.floor(Date.now() / 1000) });
+  }
+  await db.insert(schema.notifications).values({
+    userId: user.userId,
+    type: "system",
+    refId: item.id,
+    content: `Dein Hochlad wurde veröffentlicht: /item/${item.id}`,
+    created: Math.floor(Date.now() / 1000),
+  });
   return ok({ itemId: item.id, promoted: item.promoted, flags: item.flags });
 });
 
@@ -354,6 +425,61 @@ register("comments.vote", async (ctx) => {
 register("items.ratelimited", async (ctx) => {
   const user = await requireUser(ctx);
   return ok({ left: await uploadQuota(user.userId) });
+});
+
+/** Mülltrennung: the owner (or a moderator) marks a post as junk so it leaves the normal feed. */
+register("items.setjunk", async (ctx) => {
+  const user = await requireUser(ctx);
+  assertNonce(ctx, user);
+  const id = int(ctx.form.id, 0);
+  const junk = ctx.form.junk === "1" || ctx.form.junk === "true";
+  const rows = await db.select().from(schema.items).where(eq(schema.items.id, id)).limit(1);
+  const item = rows[0];
+  if (!item) return fail("not found");
+  if (item.userId !== user.userId && !user.mod && !user.admin) return fail("forbidden");
+  await db.update(schema.items).set({ junk }).where(eq(schema.items.id, id));
+  return ok({ junk });
+});
+
+/** Number of uploads per day, for the calendar. */
+register("items.calendar", async (ctx) => {
+  const mask = effectiveFlags(ctx.user, int(ctx.query.get("flags"), 31));
+  const year = int(ctx.query.get("year"), 0);
+  const month = int(ctx.query.get("month"), 0);
+  if (!year || !month) return fail("invalid");
+  const from = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
+  const to = Math.floor(Date.UTC(year, month, 1) / 1000);
+  const rows = await db
+    .select({ day: sql<number>`to_char(to_timestamp(${schema.items.created}), 'YYYY-MM-DD')`, count: sql<number>`count(*)::int` })
+    .from(schema.items)
+    .where(and(eq(schema.items.deleted, false), gte(schema.items.created, from), lt(schema.items.created, to), sql`(${schema.items.flags} & ${mask}) != 0`))
+    .groupBy(sql`1`);
+  return ok({ days: rows });
+});
+
+/** Reverse image search: finds posts with the same file (the reference board matches by image hash). */
+register("items.reverse", async (ctx) => {
+  const user = await requireUser(ctx);
+  assertNonce(ctx, user);
+  limit(`reverse:${user.userId}`, 10, 60);
+  const url = (ctx.form.url ?? "").trim();
+  if (!url) return fail("invalid");
+  const max = Number(process.env.MAX_UPLOAD_BYTES ?? 50 * 1024 * 1024);
+  let buf: Buffer;
+  try {
+    buf = await fetchRemote(url, max);
+  } catch {
+    return fail("invalid url");
+  }
+  const dhash = createHash("sha256").update(buf).digest("hex");
+  const rows = await db
+    .select({ item: schema.items, userName: schema.users.name, userMark: schema.users.mark })
+    .from(schema.items)
+    .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
+    .where(and(eq(schema.items.dhash, dhash), eq(schema.items.deleted, false)))
+    .orderBy(desc(schema.items.id))
+    .limit(20);
+  return ok({ items: rows.map(toItem) });
 });
 
 register("items.delete", async (ctx) => {

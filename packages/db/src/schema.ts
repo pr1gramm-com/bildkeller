@@ -30,6 +30,10 @@ export const users = pgTable(
     mod: boolean("mod").notNull().default(false),
     inviteId: int("invite_id"),
     bannedUntil: int("banned_until"),
+    /** Self-imposed lock-out: the profile is shown as inactive until this moment. */
+    inactiveUntil: int("inactive_until"),
+    /** Key of the chosen profile background (see lib/backgrounds.ts). */
+    background: text("background"),
     deleted: boolean("deleted").notNull().default(false),
     created: int("created").notNull(),
   },
@@ -251,8 +255,9 @@ export const notifications = pgTable("notifications", {
   userId: int("user_id")
     .notNull()
     .references(() => users.id),
-  type: text("type").notNull(), // mention | comment | follow
+  type: text("type").notNull(), // mention | comment | follow | system
   refId: big("ref_id", { mode: "number" }).notNull().default(0),
+  content: text("content").notNull().default(""),
   created: int("created").notNull(),
   read: boolean("read").notNull().default(false),
 }, (t) => [index("notifications_user_idx").on(t.userId)]);

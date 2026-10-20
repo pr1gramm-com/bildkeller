@@ -13,16 +13,22 @@ The web client's code, logo and icons are original; its look and feel is **inspi
 
 ## Features
 
-- Upload (PNG, JPEG, GIF, WebM, MP4, MOV), thumbnails, exact-duplicate (repost) detection, per-user upload quota
-- Feeds: new / popular / junk, tag feeds, cursor pagination, content-rating flags (sfw, nsfw, nsfl, nsfp, pol)
+- Upload (PNG, JPEG, GIF, WebM, MP4, MOV), thumbnails, exact-duplicate (repost) detection, per-user upload quota,
+  upload by URL, target collection and an optional first comment
+- Feeds: new / popular / junk, tag feeds, cursor pagination, content-rating flags (sfw, nsfw, nsfl, nsfp, pol),
+  chronicle (everything), stalk feed (users you follow) and a calendar of uploads
 - Voting with toggle, Wilson-score confidence for tags and comments, configurable promotion threshold
-- Tags with per-tag votes and a search language: `! cats -dogs -"video" s:100 u:name`
-- Threaded comments with edit history, mentions, favourites
-- Profiles, benis score, follow, block (users and tags), private messages, notifications, collections
-- Invite-only registration (first account becomes admin), reports, bans, admin UI, GDPR basics (export, deletion)
-- Event-log based `user/sync` (vote cache across devices) as in the reference API
+- Tags with per-tag votes and a search language: `! cats -dogs -"video" s:100 u:name ~cat d:2024-01-01..2024-12-31 r:1920x1080`
+- Advanced search with seven criteria types, include/exclude per criterion, AND/OR groups and a reverse image search
+- Threaded comments with edit history, mentions, favourites, replies, blocking and collapsing
+- Profiles, benis score, follow, block (users and tags), private messages, notifications, collections, user status
+- Postbox with seven tabs: all, comments, system notifications, highlights, follows, private messages, block list
+- Settings with six tabs: site (incl. themes, profile background, seen uploads), account, invites, curated collections,
+  notifications, authorised apps
+- Invite-only registration (first account becomes admin), reports, bans, admin UI, GDPR basics (export, deletion),
+  account name/e-mail change and self-lock-out
 
-Not in v1: casino/events, payments, OAuth provider, mobile apps, multi-board.
+Not in v1: casino/events, payments, OAuth provider, mobile apps, multi-board, meme generator.
 
 ## Quick start (Docker)
 

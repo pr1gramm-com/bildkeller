@@ -61,7 +61,7 @@ describe("items.info", () => {
     const body = await json(await handle(req(`/api/items/info?itemId=${itemId}`), ["items", "info"]));
     expect(body.error).toBeNull();
     expect(Object.keys(body).sort()).toEqual(
-      ["tags", "comments", "views", "ts", "rt", "qc", "cache", "error"].sort(),
+      ["tags", "comments", "views", "favorites", "ts", "rt", "qc", "cache", "error"].sort(),
     );
     const comments = body.comments as Array<Record<string, unknown>>;
     expect(comments.length).toBe(1);

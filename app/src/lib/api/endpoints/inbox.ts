@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/envelope";
-import { and, asc, desc, eq, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import { db, schema } from "@bildkeller/db";
 import { fail, ok } from "@/lib/api/envelope";
 import { register } from "@/lib/api/router";
@@ -106,12 +106,13 @@ register("inbox.post", async (ctx) => {
   return ok({});
 });
 
-// Notification views (comments / mentions / follows / all). Reading marks them as read.
+// Notification views (comments / mentions / follows / all / system). Reading marks them as read.
 const KINDS: Record<string, string[]> = {
-  comments: ["comment"],
+  all: ["comment", "mention", "follow", "system"],
+  comments: ["comment", "mention"],
   mentions: ["mention"],
   follows: ["follow"],
-  notifications: ["comment", "mention", "follow"],
+  notifications: ["system"],
 };
 for (const [kind, types] of Object.entries(KINDS)) {
   register(`inbox.${kind}`, async (ctx) => {
@@ -128,6 +129,9 @@ for (const [kind, types] of Object.entries(KINDS)) {
         if (n.type === "follow") {
           const f = (await db.select().from(schema.users).where(eq(schema.users.id, n.refId)).limit(1))[0];
           return { id: n.id, type: n.type, created: n.created, name: f?.name ?? "", read: n.read };
+        }
+        if (n.type === "system") {
+          return { id: n.id, type: n.type, created: n.created, content: String((n as { content?: string }).content ?? ""), read: n.read };
         }
         const c = (
           await db
@@ -150,6 +154,54 @@ for (const [kind, types] of Object.entries(KINDS)) {
 }
 
 register("inbox.digests", async (ctx) => {
-  me(ctx);
-  return ok({ digests: [] }); // digests are a pr0mium feature: not implemented
+  const user = me(ctx);
+  const since = Math.floor(Date.now() / 1000) - 86400;
+  const rows = await db
+    .select({
+      id: schema.items.id,
+      thumb: schema.items.thumb,
+      user: schema.users.name,
+      up: schema.items.up,
+      down: schema.items.down,
+      created: schema.items.created,
+    })
+    .from(schema.items)
+    .innerJoin(schema.users, eq(schema.users.id, schema.items.userId))
+    .where(and(eq(schema.items.deleted, false), eq(schema.items.junk, false), gte(schema.items.created, since)))
+    .orderBy(desc(sql`${schema.items.up} - ${schema.items.down}`))
+    .limit(10);
+  return ok({ digests: rows.map((r) => ({ ...r, score: r.up - r.down })) });
+});
+
+/** "Stelz-Abos": recent comments written by the users this account follows. */
+register("inbox.stalk", async (ctx) => {
+  const user = me(ctx);
+  const followed = await db
+    .select({ id: schema.users.id })
+    .from(schema.follows)
+    .innerJoin(schema.users, eq(schema.users.id, schema.follows.followeeId))
+    .where(eq(schema.follows.followerId, user.userId));
+  if (followed.length === 0) return ok({ messages: [] });
+  const rows = await db
+    .select({
+      id: schema.comments.id,
+      content: schema.comments.content,
+      created: schema.comments.created,
+      itemId: schema.comments.itemId,
+      name: schema.users.name,
+      thumb: schema.items.thumb,
+    })
+    .from(schema.comments)
+    .innerJoin(schema.users, eq(schema.users.id, schema.comments.userId))
+    .innerJoin(schema.items, eq(schema.items.id, schema.comments.itemId))
+    .where(
+      and(
+        inArray(schema.comments.userId, followed.map((f) => f.id)),
+        eq(schema.comments.deleted, false),
+        eq(schema.items.deleted, false),
+      ),
+    )
+    .orderBy(desc(schema.comments.id))
+    .limit(50);
+  return ok({ messages: rows });
 });
