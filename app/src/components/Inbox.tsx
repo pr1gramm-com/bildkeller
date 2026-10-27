@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { api, ago, getMe, useMe, mediaUrl } from "@/lib/client/api";
+import { inboxRead } from "@/lib/client/inbox";
 
 type Conv = { name: string; unreadCount: number; lastMessagePreview: string; lastMessage: number; blocked: number };
 type Msg = { id: number; created: number; sent: number; message: string };
@@ -40,14 +41,14 @@ export default function Inbox({ tab, peer: initialPeer }: { tab: string; peer?: 
   useEffect(() => { if (getMe()) void loadConvs(); else setError("Bitte einloggen."); }, [loadConvs]);
   useEffect(() => {
     if (tab === "notifications" || tab === "all" || tab === "comments") {
-      api.get(`inbox/${tab}`).then((r) => { setNotes(r.messages ?? []); setBefore(r.before ?? 0); setAtEnd(r.atEnd ?? true); }).catch((e) => setError(e.message));
+      api.get(`inbox/${tab}`).then((r) => { setNotes(r.messages ?? []); setBefore(r.before ?? 0); setAtEnd(r.atEnd ?? true); inboxRead(); }).catch((e) => setError(e.message));
     }
     if (tab === "digests") api.get("inbox/digests").then((r) => setDigests(r.digests ?? [])).catch(() => undefined);
     if (tab === "follows") api.get("inbox/stalk").then((r) => setNotes(r.messages ?? [])).catch(() => undefined);
     if (tab === "blocklist") api.get("user/blocklist").then((r) => setBlocked(r.blocked ?? [])).catch(() => undefined);
   }, [tab]);
-  useEffect(() => { if (tab === "messages" && peer) api.get("inbox/messages", { with: peer }).then((r) => { setMsgs(r.messages); void loadConvs(); }).catch((e) => setError(e.message)); }, [tab, peer, loadConvs]);
-  useEffect(() => { if (tab === "messages" && !peer && convs.length > 0) setPeer(convs[0].name); }, [tab, convs, peer]);
+  useEffect(() => { if (tab === "messages" && peer) api.get("inbox/messages", { with: peer }).then((r) => { setMsgs(r.messages); void loadConvs(); inboxRead(); }).catch((e) => setError(e.message)); }, [tab, peer, loadConvs]);
+  useEffect(() => { if (tab === "messages" && !peer && convs.length > 0) setPeer((convs.find((c) => c.unreadCount > 0) ?? convs[0]).name); }, [tab, convs, peer]);
   useEffect(() => { if (initialPeer) setPeer(initialPeer); }, [initialPeer]);
 
   async function send(e: React.FormEvent) {
@@ -70,7 +71,7 @@ export default function Inbox({ tab, peer: initialPeer }: { tab: string; peer?: 
       <div className="tab-bar">
         <nav>
           {TABS.map((t) => (
-            <a key={t.href} href={t.href} className={tab === t.href.split("/").pop() ? "active" : ""}>{t.label}</a>
+            <Link key={t.href} href={t.href} className={tab === t.href.split("/").pop() ? "active" : ""}>{t.label}</Link>
           ))}
         </nav>
       </div>
