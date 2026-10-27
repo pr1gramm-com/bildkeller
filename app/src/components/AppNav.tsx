@@ -4,7 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { api, getMe, type Me } from "@/lib/client/api";
 import { feedPath, searchHref } from "@/lib/feed-route";
-import { syncOnce } from "@/lib/client/votes";
+import { inboxHref, unreadTotal, useInbox } from "@/lib/client/inbox";
 import FlagFilter from "./FlagFilter";
 import Icon from "./Icon";
 import Logo from "./Logo";
@@ -24,7 +24,6 @@ export default function AppNav() {
   const path = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me>(null);
-  const [unread, setUnread] = useState(0);
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState(false);
   const [mobileSearch, setMobileSearch] = useState(false);
@@ -33,16 +32,11 @@ export default function AppNav() {
   const userMenu = useRef<HTMLDivElement>(null);
   const preferences = usePreferences();
 
-  useEffect(() => {
-    setMe(getMe());
-    const tick = () =>
-      syncOnce()
-        .then((i) => i && setUnread(i.messages + i.notifications))
-        .catch(() => undefined);
-    tick();
-    const t = setInterval(tick, 60_000);
-    return () => clearInterval(t);
-  }, [path.split("/")[1] ?? ""]);
+  const section = path.split("/")[1] ?? "";
+  const inbox = useInbox(section);
+  const unread = unreadTotal(inbox);
+
+  useEffect(() => setMe(getMe()), [section]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -118,7 +112,7 @@ export default function AppNav() {
         <div className="an-right">
           {me ? (
             <>
-              <Link href="/inbox" className="iconbtn" title="Nachrichten" aria-label="Nachrichten">
+              <Link href={inboxHref(inbox)} className={`iconbtn${unread > 0 ? " has-unread" : ""}`} title="Nachrichten" aria-label={unread > 0 ? `Nachrichten, ${unread} ungelesen` : "Nachrichten"}>
                 <Icon name="mail" size={20} />
                 {unread > 0 && <span className="count">{unread}</span>}
               </Link>

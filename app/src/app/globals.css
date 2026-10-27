@@ -76,6 +76,7 @@ button.link:hover { color: var(--main); background: none; }
 #head .login-link:hover { color: var(--main); }
 .iconbtn { position: relative; display: inline-flex; align-items: center; justify-content: center; background: none; padding: 4px; color: var(--text); }
 .iconbtn:hover:not(:disabled) { background: none; color: var(--main); }
+.iconbtn.has-unread, #head .iconbtn.has-unread .count { color: var(--main); font-weight: 700; }
 .badge { position: absolute; top: -2px; right: -6px; background: var(--main); color: #fff; border-radius: 99px; padding: 0 5px; font-size: 11px; font-weight: 700; line-height: 16px; }
 .flagfilter { position: relative; }
 .flaglabel { color: var(--text) !important; }

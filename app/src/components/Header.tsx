@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getMe, type Me } from "@/lib/client/api";
-import { syncOnce } from "@/lib/client/votes";
+import { inboxHref, unreadTotal, useInbox } from "@/lib/client/inbox";
 import { useSearch } from "@/lib/client/search";
 import BookmarksMenu from "./BookmarksMenu";
 import FlagFilter from "./FlagFilter";
@@ -22,22 +22,15 @@ export default function Header() {
   const path = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me>(null);
-  const [unread, setUnread] = useState(0);
   const [q, setQ] = useState("");
   const [menu, setMenu] = useState<"search" | "bookmarks" | null>(null);
   const search = useSearch();
   const section = path.split("/")[1] ?? ""; // opening posts inline changes the path; only a real section change re-syncs
 
-  useEffect(() => {
-    setMe(getMe());
-    const tick = () =>
-      syncOnce()
-        .then((i) => i && setUnread(i.messages + i.notifications))
-        .catch(() => undefined);
-    tick();
-    const t = setInterval(tick, 60_000);
-    return () => clearInterval(t);
-  }, [section]);
+  const inbox = useInbox(section);
+  const unread = unreadTotal(inbox);
+
+  useEffect(() => setMe(getMe()), [section]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -96,9 +89,9 @@ export default function Header() {
           <>
             {me.a === "1" && <Link href="/admin" className="pill">Mod</Link>}
             <Link href={`/user/${me.n}`} id="user-profile-name" className="uname">{me.n}</Link>
-            <Link href="/inbox" id="inbox-link" className="iconbtn" title="Nachrichten">
+            <Link href={inboxHref(inbox)} id="inbox-link" className={`iconbtn${unread > 0 ? " has-unread" : ""}`} title="Nachrichten" aria-label={unread > 0 ? `Nachrichten, ${unread} ungelesen` : "Nachrichten"}>
               <Icon name="mail" size={20} />
-              <span className="count" id="inbox-count">{unread}</span>
+              {unread > 0 && <span className="count" id="inbox-count">{unread}</span>}
             </Link>
             <Link href="/settings" id="settings-link" className="iconbtn" title="Einstellungen">
               <Icon name="settings" size={20} />

@@ -2,7 +2,8 @@ const PATHS = {
   plus: "M12 5v14M5 12h14",
   minus: "M5 12h14",
   search: "M21 21l-4.3-4.3M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15z",
-  mail: "M3 5h18v14H3zM3 6l9 7 9-7",
+  // filled envelope: body plus an even-odd cut-out for the flap
+  mail: "M4 5h16a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM5.3 7.6L12 12.9l6.7-5.3v2.3L12 15.2 5.3 9.9z",
   settings: "M4 6h16M4 12h16M4 18h16M9 4v4M15 10v4M8 16v4",
   upload: "M12 16V4M6 10l6-6 6 6M4 20h16",
   star: "M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z",
@@ -26,20 +27,23 @@ const PATHS = {
 
 export type IconName = keyof typeof PATHS;
 
+const FILLED: ReadonlySet<IconName> = new Set(["mail"]);
+
 export default function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
+  const filled = FILLED.has(name);
   return (
     <svg
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
+      fill={filled ? "currentColor" : "none"}
+      stroke={filled ? "none" : "currentColor"}
       strokeWidth={2}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      <path d={PATHS[name]} />
+      <path d={PATHS[name]} fillRule={filled ? "evenodd" : undefined} />
     </svg>
   );
 }
